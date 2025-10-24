@@ -31,6 +31,7 @@ RUN adduser --system --uid 1001 nextjs
 # 复制构建产物
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
 
 # 设置正确的权限
 RUN chown -R nextjs:nodejs /app
