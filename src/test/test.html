@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>手电筒 · 跟随聚光灯（拉绳隐藏，照到才可见）</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --mx: 50%;         /* 鼠标/触点 X */
+      --my: 50%;         /* 鼠标/触点 Y */
+      --r: 120px;        /* 手电筒半径 */
+      --feather: 90px;   /* 边缘羽化宽度（越大越柔和） */
+      --outer: 200vmax;  /* 最外层半径 */
+    }
+
+    html,body{ height:100%; margin:0; background:#000; color:#fff; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", Arial; }
+
+    .stage{ min-height:100%; display:grid; place-items:center; padding:6vh 6vw; position:relative; overflow:hidden; }
+
+    .content{ max-width:1024px; line-height:1.7; }
+    h1{ font-size:clamp(34px,6vw,72px); margin:.2em 0 .4em; }
+    p{ margin:.7em 0; opacity:.92; }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; opacity:.85; }
+
+    /* 手电筒遮罩层：中心透明，外侧变暗并带羽化 */
+    .flashlight{ position:fixed; inset:0; pointer-events:none; z-index:10;
+      background: radial-gradient(
+        circle at var(--mx) var(--my),
+        transparent 0,
+        transparent calc(var(--r)),
+        rgba(0,0,0,.35) calc(var(--r) + calc(var(--feather) * .33)),
+        rgba(0,0,0,.66) calc(var(--r) + calc(var(--feather) * .66)),
+        rgba(0,0,0,.9)  calc(var(--r) + var(--feather)),
+        rgba(0,0,0,.97) var(--outer)
+      );
+      transition: opacity .25s ease, background-position .06s linear;
+    }
+    /* 开灯：隐藏遮罩 */
+    body.lights-on .flashlight{ opacity:0; }
+
+    .hint{ position:fixed; left:50%; bottom:24px; transform:translateX(-50%); color:#bbb; font-size:12px; letter-spacing:.06em; opacity:.9; user-select:none; z-index:20; }
+
+    /* —— 拉绳默认隐藏，仅在被手电筒照到时显现 —— */
+    .pull-area{ position:fixed; top:10px; right:14px; height:180px; width:120px; z-index:30; pointer-events:none; }
+    .pull-wrap{ position:absolute; top:6px; right:100px; height:160px; width:80px; display:flex; justify-content:flex-end; align-items:flex-start; user-select:none; opacity:0; transform: translateY(0); transition: opacity .16s ease; }
+    .pull-wrap.armed{ opacity:.05; }           /* 微弱可见，像藏在黑暗里 */
+    .pull-wrap.visible{ opacity:1; pointer-events:auto; } /* 真正照到后完全可见并可点 */
+
+    .pull-rope{ position:absolute; top:0; right:24px; width:2px; height:130px; background: linear-gradient(#888,#aaa); transform-origin: top center; transition: transform .2s ease; }
+    .pull-knob{ position:absolute; bottom:8px; right:15px; width:22px; height:22px; border-radius:50%; background:#e5e7eb; color:#111; display:grid; place-items:center; box-shadow: 0 6px 16px rgba(0,0,0,.35); cursor:pointer; transform-origin: top center; transition: transform .2s ease, background .2s ease, color .2s ease; font-size:12px; font-weight:700; }
+
+    .bulb{ position:absolute; top:-14px; right:18px; width:14px; height:14px; border-radius:50%; background:#333; box-shadow:0 0 0 2px #222 inset; transition: background .2s ease, box-shadow .2s ease, filter .2s ease; }
+    body.lights-on .bulb{ background:#fff; filter: drop-shadow(0 0 6px #fff); box-shadow:0 0 0 2px #ddd inset; }
+
+    /* 下拉动画：点击时拉绳向下拉并回弹，绳子有轻微伸长 */
+    @keyframes yank { 0%{transform: translateY(0);} 40%{transform: translateY(36px);} 70%{transform: translateY(14px);} 100%{transform: translateY(0);} }
+    @keyframes rope-stretch { 0%{transform: scaleY(1);} 40%{transform: scaleY(1.22);} 70%{transform: scaleY(1.08);} 100%{transform: scaleY(1);} }
+    .pulling .pull-rope { animation: rope-stretch .42s ease-out; }
+    .pulling .pull-knob { animation: yank .42s cubic-bezier(.2,.8,.2,1); }
+
+    /* 开灯时：让拉绳保持可见，方便再次关灯 */
+    body.lights-on .pull-wrap{ opacity:.9; pointer-events:auto; }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <div class="content">
+      <h1>欢迎来到绿桶的小世界</h1>
+      <p>Welcome to the world of Green Bucket</p>
+      <p class="mono">Alt 放大 · Shift 缩小 · 键盘 L 快捷开/关灯</p>
+      <p>这是更“彩蛋感”的版本：拉绳平时埋在暗处，只有聚光照过去才能发现。点击还带有向下拉的回弹动画。</p>
+    </div>
+  </div>
+
+  <!-- 手电筒遮罩层 -->
+  <div class="flashlight" id="flash"></div>
+
+  <!-- 右上角拉绳（包含更大的命中区域） -->
+  <div class="pull-area" id="pullArea" aria-hidden="true">
+    <div class="pull-wrap" id="pull" role="button" aria-label="切换开关" tabindex="0">
+      <div class="bulb" aria-hidden="true"></div>
+      <div class="pull-rope" aria-hidden="true"></div>
+      <div class="pull-knob" aria-hidden="true">⏻</div>
+    </div>
+  </div>
+
+  <div class="hint" id="hint">移动鼠标 / 触摸拖动 · Alt 放大 · Shift 缩小 · 手电筒照到右上角找拉绳</div>
+
+  <script>
+    (function(){
+      const root = document.documentElement;
+      const pull = document.getElementById('pull');
+      const pullArea = document.getElementById('pullArea');
+      const body = document.body;
+
+      let mx = innerWidth * .5;
+      let my = innerHeight * .5;
+      let baseR = 120;
+      let feather = 90;
+      let pending = false;
+
+      function setPos(x, y){ mx = x; my = y; requestUpdate(); }
+      function setR(r){ baseR = Math.max(40, Math.min(420, r)); requestUpdate(); }
+      function setFeather(f){ feather = Math.max(40, Math.min(260, f)); requestUpdate(); }
+
+      function requestUpdate(){
+        if (pending) return; pending = true;
+        requestAnimationFrame(() => {
+          root.style.setProperty('--mx', mx + 'px');
+          root.style.setProperty('--my', my + 'px');
+          root.style.setProperty('--r', baseR + 'px');
+          root.style.setProperty('--feather', feather + 'px');
+
+          // 关灯状态：计算拉绳是否在手电筒照到的范围内
+          if (!body.classList.contains('lights-on')){
+            const rect = pullArea.getBoundingClientRect();
+            // 取拉绳下方附近一点作为判断中心（更贴近用户的点击位置）
+            const cx = rect.right - 30;
+            const cy = rect.top + 100;
+            const dx = mx - cx;
+            const dy = my - cy;
+            const dist = Math.hypot(dx, dy);
+            const visibleRadius = baseR + feather * 0.55; // 稍大于亮圈半径，体验更好
+
+            if (dist <= visibleRadius){
+              pull.classList.add('visible');
+              pull.classList.remove('armed');
+            } else {
+              pull.classList.remove('visible');
+              pull.classList.add('armed');
+            }
+          }
+          pending = false;
+        });
+      }
+
+      function onMouseMove(e){ setPos(e.clientX, e.clientY); }
+      function onTouchMove(e){ const t=e.touches[0]; if(t) setPos(t.clientX, t.clientY); }
+
+      function onKey(e){
+        if(e.type==='keydown'){
+          if(e.key==='Alt'){ setR(220); setFeather(140); }
+          if(e.key==='Shift'){ setR(90); setFeather(70); }
+          if(e.key.toLowerCase()==='l') toggleLights();
+        }else if(e.type==='keyup'){
+          setR(120); setFeather(90);
+        }
+      }
+
+      function toggleLights(){
+        // 点击时先触发“下拉”动画
+        body.classList.add('pulling');
+        setTimeout(()=> body.classList.remove('pulling'), 450);
+        // 切换灯光
+        body.classList.toggle('lights-on');
+        if (body.classList.contains('lights-on')){
+          // 开灯后直接显示拉绳，方便再次关闭
+          pull.classList.add('visible');
+          pull.classList.remove('armed');
+        } else {
+          // 关灯后由手电筒控制显隐，先退回半隐藏状态
+          pull.classList.remove('visible');
+          pull.classList.add('armed');
+          requestUpdate();
+        }
+      }
+
+      // 交互：只有在 visible 状态下才会有 pointer-events:auto
+      pull.addEventListener('click', toggleLights);
+      pull.addEventListener('keydown', (e)=>{
+        if(e.key==='Enter' || e.key===' '){ e.preventDefault(); toggleLights(); }
+      });
+
+      // 初始化
+      setPos(innerWidth/2, innerHeight/2);
+      addEventListener('mousemove', onMouseMove, {passive:true});
+      addEventListener('touchstart', onTouchMove, {passive:true});
+      addEventListener('touchmove', onTouchMove, {passive:true});
+      addEventListener('keydown', onKey);
+      addEventListener('keyup', onKey);
+      addEventListener('resize', () => requestUpdate(), {passive:true});
+    })();
+  </script>
+</body>
+</html>
