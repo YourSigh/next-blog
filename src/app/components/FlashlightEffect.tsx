@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Test from './test/test';
 
 export default function FlashlightEffect() {
   const [lightsOn, setLightsOn] = useState(false);
@@ -419,6 +420,7 @@ export default function FlashlightEffect() {
       <div className={`container-wrapper ${lightsOn ? 'lights-on' : ''}`}>
         {/* 手电筒遮罩层 */}
         <div className="flashlight" />
+        <Test />
 
         {/* 右上角拉绳 */}
         <div className="pull-area" ref={pullAreaRef}>
