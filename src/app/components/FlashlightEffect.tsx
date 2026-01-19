@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Test from './test/test';
 
 export default function FlashlightEffect() {
+  const LIGHTS_STORAGE_KEY = 'next-blog:lumi:lightsOn';
   const [lightsOn, setLightsOn] = useState(false);
   const [pulling, setPulling] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -76,10 +77,24 @@ export default function FlashlightEffect() {
       
       // 添加 body 类名来应用样式
       document.body.classList.add('flashlight-page');
+
+      // 恢复灯光状态缓存（用于路由切换后回到首页不“重回黑暗”）
+      try {
+        const cached = window.localStorage.getItem(LIGHTS_STORAGE_KEY);
+        const cachedOn = cached === '1';
+        if (cachedOn) {
+          setLightsOn(true);
+          setIsVisible(true);
+          setIsArmed(false);
+          document.body.classList.add('lights-on');
+        }
+      } catch {
+        // ignore (Safari private mode / storage blocked)
+      }
       
       return () => {
-        // 清理类名
-        document.body.classList.remove('flashlight-page', 'lights-on', 'pulling');
+        // 清理类名（注意：不移除 lights-on，这样点亮后跳转页面导航仍然可见）
+        document.body.classList.remove('flashlight-page', 'pulling');
       };
     }
   }, []);
@@ -90,6 +105,16 @@ export default function FlashlightEffect() {
       document.body.classList.add('lights-on');
     } else {
       document.body.classList.remove('lights-on');
+    }
+  }, [lightsOn]);
+
+  // 缓存灯光状态
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(LIGHTS_STORAGE_KEY, lightsOn ? '1' : '0');
+    } catch {
+      // ignore
     }
   }, [lightsOn]);
 
@@ -181,242 +206,6 @@ export default function FlashlightEffect() {
 
   return (
     <>
-      <style jsx global>{`
-        .flashlight-page {
-          margin: 0 !important;
-          background: #000 !important;
-          color: #fff !important;
-          min-height: 100vh !important;
-          cursor: url('/light_cursor.png'), auto;
-        }
-
-        .flashlight-page * {
-          cursor: url('/light_cursor.png'), auto;
-        }
-
-        .lights-on {
-          cursor: default !important;
-        }
-
-        .lights-on * {
-          cursor: default !important;
-        }
-
-        .pulling {
-          cursor: url('/hand_cursor.png'), pointer !important;
-        }
-
-        .pulling * {
-          cursor: url('/hand_cursor.png'), pointer !important;
-        }
-
-        .pull-knob {
-          cursor: url('/hand_cursor.png'), pointer !important;
-        }
-
-        :root {
-          --mx: 50%;
-          --my: 50%;
-          --r: 120px;
-          --feather: 90px;
-          --outer: 200vmax;
-        }
-
-        .stage {
-          min-height: 100vh;
-          display: grid;
-          place-items: center;
-          padding: 6vh 6vw;
-          position: relative;
-          overflow: hidden;
-        }
-
-        .content {
-          max-width: 1024px;
-          line-height: 1.7;
-          z-index: 1;
-        }
-
-        h1 {
-          font-size: clamp(34px, 6vw, 72px);
-          margin: 0.2em 0 0.4em;
-        }
-
-        p {
-          margin: 0.7em 0;
-          opacity: 0.92;
-        }
-
-        .mono {
-          font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-          opacity: 0.85;
-        }
-
-        .flashlight {
-          position: fixed;
-          inset: 0;
-          pointer-events: none;
-          z-index: 10;
-          opacity: 1;
-          background: radial-gradient(
-            circle at var(--mx) var(--my),
-            transparent 0,
-            transparent calc(var(--r)),
-            rgba(0, 0, 0, 0.35) calc(var(--r) + calc(var(--feather) * 0.33)),
-            rgba(0, 0, 0, 0.66) calc(var(--r) + calc(var(--feather) * 0.66)),
-            rgba(0, 0, 0, 0.9) calc(var(--r) + var(--feather)),
-            rgba(0, 0, 0, 0.97) var(--outer)
-          );
-          transition: opacity 0.25s ease;
-        }
-
-        .lights-on .flashlight {
-          opacity: 0 !important;
-        }
-
-        .container-wrapper {
-          position: relative;
-        }
-
-        .hint {
-          position: fixed;
-          left: 50%;
-          bottom: 24px;
-          transform: translateX(-50%);
-          color: #bbb;
-          font-size: 12px;
-          letter-spacing: 0.06em;
-          opacity: 0.9;
-          user-select: none;
-          z-index: 20;
-        }
-
-        .pull-area {
-          position: fixed;
-          top: 10px;
-          right: 14px;
-          height: 180px;
-          width: 120px;
-          z-index: 30;
-          pointer-events: none;
-        }
-
-        .pull-wrap {
-          position: absolute;
-          top: 6px;
-          right: 100px;
-          height: 160px;
-          width: 80px;
-          display: flex;
-          justify-content: flex-end;
-          align-items: flex-start;
-          user-select: none;
-          opacity: 0;
-          transform: translateY(0);
-          transition: opacity 0.16s ease;
-        }
-
-        .pull-wrap.armed {
-          opacity: 0.05;
-        }
-
-        .pull-wrap.visible {
-          opacity: 1;
-          pointer-events: auto;
-        }
-
-        .pull-rope {
-          position: absolute;
-          top: 0;
-          right: 24px;
-          width: 2px;
-          height: 130px;
-          background: linear-gradient(#888, #aaa);
-          transform-origin: top center;
-          transition: transform 0.2s ease;
-        }
-
-        .pull-knob {
-          position: absolute;
-          bottom: 8px;
-          right: 15px;
-          width: 22px;
-          height: 22px;
-          border-radius: 50%;
-          background: #e5e7eb;
-          color: #111;
-          display: grid;
-          place-items: center;
-          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
-          cursor: url('/hand_cursor.png'), pointer !important;
-          transform-origin: top center;
-          transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
-          font-size: 12px;
-          font-weight: 700;
-        }
-
-        .bulb {
-          position: absolute;
-          top: -14px;
-          right: 18px;
-          width: 14px;
-          height: 14px;
-          border-radius: 50%;
-          background: #333;
-          box-shadow: 0 0 0 2px #222 inset;
-          transition: background 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
-        }
-
-        .lights-on .bulb {
-          background: #fff;
-          filter: drop-shadow(0 0 6px #fff);
-          box-shadow: 0 0 0 2px #ddd inset;
-        }
-
-        @keyframes yank {
-          0% {
-            transform: translateY(0);
-          }
-          40% {
-            transform: translateY(36px);
-          }
-          70% {
-            transform: translateY(14px);
-          }
-          100% {
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes rope-stretch {
-          0% {
-            transform: scaleY(1);
-          }
-          40% {
-            transform: scaleY(1.22);
-          }
-          70% {
-            transform: scaleY(1.08);
-          }
-          100% {
-            transform: scaleY(1);
-          }
-        }
-
-        .pulling .pull-rope {
-          animation: rope-stretch 0.42s ease-out;
-        }
-
-        .pulling .pull-knob {
-          animation: yank 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
-        }
-
-        .lights-on .pull-wrap {
-          opacity: 0.9;
-          pointer-events: auto;
-        }
-      `}</style>
-
       <div className={`container-wrapper ${lightsOn ? 'lights-on' : ''}`}>
         {/* 手电筒遮罩层 */}
         <div className="flashlight" />
