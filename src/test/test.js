@@ -1,68 +1,55 @@
-function makeIterableArray(generatorFn) {
-  const data = [...generatorFn()];
-  return new Proxy(data, {
-    get(target, prop) {
-      if (prop in target) return target[prop];
-      if (prop === "length") return target.length;
-      return undefined;
-    },
-  });
+// 每日限额
+const LIMIT_SIZE = 200;
+// 租户访问次数 map
+const TENANT_ACCESS_COUNT_MAP = new Map();
+// 租户限额截止时间（次日零点） map
+const TENANT_LIMIT_TIME_MAP = new Map();
+
+// 次日零点时间戳
+function getTomorrowZero() {
+  const now = new Date();
+  const tomorrow = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + 1
+  );
+  return tomorrow.getTime();
 }
 
-const arr = makeIterableArray(function* () {
-  for (let i = 0; i < 10; i++) yield i * 2;
-});
+/**
+ * 检查并记录租户用量
+ * @param {string} tenantId
+ * @returns {boolean} true = 未超限，false = 已超限
+ */
+function checkLimit(tenantId) {
+  const now = Date.now();
 
-const a = (() => {
-  const generatorFn = function* () {
-    for (let i = 0; i < 10; i++) yield i * 2;
-  };
-  const data = [...generatorFn()]
-  return new Proxy(data, {
-    get(target, prop, receiver) {
-      if (prop === Symbol.toStringTag) return 'Array';
-      if (prop === Symbol.isConcatSpreadable) return true;
-      return Reflect.get(target, prop, receiver);
-    },
-    getPrototypeOf() {
-      return Array.prototype;
-    },
-  });
-})();
-
-const i = (() => {
-  const a = function* () {
-    for (let b = 0; b < 10; b++) yield b * 2;
-  };
-  const c = [...a()]
-  return new Proxy(c, {
-    get(s, w, g) {
-      if (w === Symbol.toStringTag) return 'Array';
-      if (w === Symbol.isConcatSpreadable) return true;
-      return Reflect.get(s, w, g);
-    },
-    getPrototypeOf() {
-      return Array.prototype;
-    },
-  });
-})();
-
-const w=(()=>{const _G=Object.getPrototypeOf(function*(){}).constructor,
-_Σ=(...x)=>String.fromCharCode(...x),_Π=Array['pro'+'totype'];
-let $=[...new _G('','for(let b=0;b<10;b++)yield b*2')()];
-return new Proxy($,{get:(s,w,g)=>w===Symbol['toString'+'Tag']?_Σ(65,114,114,97,121):(w===Symbol['isConcat'+'Spreadable']?!!1:Reflect.get(s,w,g)),getPrototypeOf:()=>_Π})})();
-
-console.log(w[1]);
-
-function* fibonacci() {
-  let current = 1;
-  let next = 1;
-  while (true) {
-    const reset = yield current;
-    [current, next] = [next, next + current];
-    if (reset) {
-      current = 1;
-      next = 1;
-    }
+  // 1️⃣ 如果是第一次访问该租户，初始化
+  if (!TENANT_ACCESS_COUNT_MAP.has(tenantId)) {
+    TENANT_ACCESS_COUNT_MAP.set(tenantId, 1);
+    TENANT_LIMIT_TIME_MAP.set(tenantId, getTomorrowZero());
+    return true;
   }
+
+  const limitTime = TENANT_LIMIT_TIME_MAP.get(tenantId);
+
+  // 2️⃣ 如果已经过了限额时间（到了新的一天），重置
+  if (now >= limitTime) {
+    TENANT_ACCESS_COUNT_MAP.set(tenantId, 1);
+    TENANT_LIMIT_TIME_MAP.set(tenantId, getTomorrowZero());
+    return true;
+  }
+
+  // 3️⃣ 还在当天，判断是否超限
+  const count = TENANT_ACCESS_COUNT_MAP.get(tenantId);
+
+  if (count >= LIMIT_SIZE) {
+    return false; // 已超限
+  }
+
+  // 4️⃣ 未超限，次数 +1
+  TENANT_ACCESS_COUNT_MAP.set(tenantId, count + 1);
+  return true;
 }
+
+console.log(checkLimit('A'));
