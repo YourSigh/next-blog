@@ -468,3 +468,34 @@ body {
   background: color-mix(in oklab, var(--foreground) 10%, transparent);
   font-weight: 600;
 }
+
+/* ===== 鼠标光标拖尾特效 ===== */
+.cursor-trail-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.cursor-trail-particle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  /* 默认：黄色（手电筒模式 - 黑屏状态） */
+  background: radial-gradient(circle, rgba(255, 220, 100, 0.8) 0%, rgba(255, 220, 100, 0.4) 50%, transparent 100%);
+  box-shadow: 0 0 12px rgba(255, 220, 100, 0.6);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  will-change: transform, opacity;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* 正常状态（lights-on）：绿色光 */
+.lights-on .cursor-trail-particle {
+  background: radial-gradient(circle, rgba(144, 255, 144, 0.8) 0%, rgba(144, 255, 144, 0.4) 50%, transparent 100%);
+  box-shadow: 0 0 12px rgba(144, 255, 144, 0.6);
+}
