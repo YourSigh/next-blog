@@ -330,3 +330,141 @@ body {
 }
 
 /* appMain 始终有 padding-top，因此无需在 lights-on 时再单独设置 */
+
+/* ===== Markdown 编辑器预览样式 ===== */
+.markdown-preview {
+  color: var(--foreground);
+}
+
+.markdown-preview h1 {
+  font-size: 2em;
+  font-weight: 700;
+  margin: 0.67em 0;
+  padding-bottom: 0.3em;
+  border-bottom: 2px solid color-mix(in oklab, var(--foreground) 20%, transparent);
+}
+
+.markdown-preview h2 {
+  font-size: 1.5em;
+  font-weight: 700;
+  margin: 0.75em 0;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid color-mix(in oklab, var(--foreground) 15%, transparent);
+}
+
+.markdown-preview h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin: 0.83em 0;
+}
+
+.markdown-preview h4,
+.markdown-preview h5,
+.markdown-preview h6 {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 1em 0;
+}
+
+.markdown-preview p {
+  margin: 1em 0;
+  line-height: 1.8;
+}
+
+.markdown-preview code {
+  background: color-mix(in oklab, var(--foreground) 10%, transparent);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.markdown-preview pre {
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 1em 0;
+  border: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent);
+}
+
+.markdown-preview pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.9em;
+  line-height: 1.6;
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+  margin: 1em 0;
+  padding-left: 2em;
+}
+
+.markdown-preview li {
+  margin: 0.5em 0;
+  line-height: 1.8;
+}
+
+.markdown-preview blockquote {
+  margin: 1em 0;
+  padding: 0 1em;
+  border-left: 4px solid color-mix(in oklab, var(--foreground) 30%, transparent);
+  color: color-mix(in oklab, var(--foreground) 80%, transparent);
+  background: color-mix(in oklab, var(--foreground) 5%, transparent);
+  border-radius: 4px;
+}
+
+.markdown-preview a {
+  color: #4a9eff;
+  text-decoration: none;
+}
+
+.markdown-preview a:hover {
+  text-decoration: underline;
+}
+
+.markdown-preview img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 1em 0;
+}
+
+.markdown-preview hr {
+  border: none;
+  border-top: 1px solid color-mix(in oklab, var(--foreground) 20%, transparent);
+  margin: 2em 0;
+}
+
+.markdown-preview strong {
+  font-weight: 700;
+}
+
+.markdown-preview em {
+  font-style: italic;
+}
+
+.markdown-preview del {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.markdown-preview table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+}
+
+.markdown-preview th,
+.markdown-preview td {
+  border: 1px solid color-mix(in oklab, var(--foreground) 20%, transparent);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.markdown-preview th {
+  background: color-mix(in oklab, var(--foreground) 10%, transparent);
+  font-weight: 600;
+}

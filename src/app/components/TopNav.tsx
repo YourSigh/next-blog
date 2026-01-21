@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 const navItems = [
   { href: '/', label: '首页' },
   { href: '/after-sales-api', label: '售后宝接口调用' },
+  { href: '/markdown-editor', label: 'Markdown 编辑器' },
 ] as const;
 
 export default function TopNav() {
