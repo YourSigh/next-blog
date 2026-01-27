@@ -253,7 +253,14 @@ function JsonEditorWithHighlights({
   const contentHeight = EDITOR_PADDING_PX * 2 + lineCount * EDITOR_LINE_HEIGHT_PX;
 
   return (
-    <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        overflow: 'auto',
+        position: 'relative',
+      }}
+    >
       <div
         style={{
           position: 'relative',
@@ -330,8 +337,24 @@ export default function JsonDiffPage() {
   const rightEditor = useJsonTextarea(jsonRight, setJsonRight);
 
   const lineDiff = useMemo(() => computeLineDiff(jsonLeft, jsonRight), [jsonLeft, jsonRight]);
-  const leftLineBgs = useMemo(() => lineDiff.left.map(lineKindToBgLeft), [lineDiff.left]);
-  const rightLineBgs = useMemo(() => lineDiff.right.map(lineKindToBgRight), [lineDiff.right]);
+  const canHighlightLines =
+    jsonLeft.trim() !== '' &&
+    jsonRight.trim() !== '' &&
+    result?.ok === true;
+  const leftLineBgs = useMemo(
+    () =>
+      canHighlightLines
+        ? lineDiff.left.map(lineKindToBgLeft)
+        : jsonLeft.split('\n').map(() => 'transparent'),
+    [canHighlightLines, lineDiff.left, jsonLeft]
+  );
+  const rightLineBgs = useMemo(
+    () =>
+      canHighlightLines
+        ? lineDiff.right.map(lineKindToBgRight)
+        : jsonRight.split('\n').map(() => 'transparent'),
+    [canHighlightLines, lineDiff.right, jsonRight]
+  );
 
   const runDiff = useCallback(() => {
     setResult(compareJson(jsonLeft, jsonRight));
@@ -425,7 +448,15 @@ export default function JsonDiffPage() {
           overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', borderRight: PANEL_BORDER }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            borderRight: PANEL_BORDER,
+            minHeight: 0,
+            overflow: 'hidden',
+          }}
+        >
           <div
             style={{
               padding: '12px 16px',
@@ -465,7 +496,14 @@ export default function JsonDiffPage() {
           />
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+            overflow: 'hidden',
+          }}
+        >
           <div
             style={{
               padding: '12px 16px',
