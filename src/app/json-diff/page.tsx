@@ -321,8 +321,8 @@ function JsonEditorWithHighlights({
 }
 
 export default function JsonDiffPage() {
-  const [jsonLeft, setJsonLeft] = useState('{\n  "name": "示例",\n  "count": 1\n}');
-  const [jsonRight, setJsonRight] = useState('{\n  "name": "示例",\n  "count": 2,\n  "extra": true\n}');
+  const [jsonLeft, setJsonLeft] = useState('');
+  const [jsonRight, setJsonRight] = useState('');
   const [result, setResult] = useState<{ ok: true; items: DiffItem[] } | { ok: false; error: string } | null>(null);
   const [filterKind, setFilterKind] = useState<DiffKind | 'all'>('all');
 
@@ -461,7 +461,7 @@ export default function JsonDiffPage() {
             onKeyDown={leftEditor.onKeyDown}
             textareaRef={leftEditor.textareaRef}
             lineBgs={leftLineBgs}
-            placeholder='{"a": 1}'
+            placeholder='请输入 JSON'
           />
         </div>
 
@@ -501,7 +501,7 @@ export default function JsonDiffPage() {
             onKeyDown={rightEditor.onKeyDown}
             textareaRef={rightEditor.textareaRef}
             lineBgs={rightLineBgs}
-            placeholder='{"a": 2}'
+            placeholder='请输入 JSON'
           />
         </div>
       </div>
