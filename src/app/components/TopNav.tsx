@@ -8,6 +8,7 @@ const navItems = [
   { href: '/after-sales-api', label: '售后宝接口调用' },
   { href: '/markdown-editor', label: 'Markdown 编辑器' },
   { href: '/json-diff', label: 'JSON 对比' },
+  { href: '/image-compress', label: '图片压缩' },
 ] as const;
 
 export default function TopNav() {
