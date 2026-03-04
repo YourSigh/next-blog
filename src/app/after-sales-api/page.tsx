@@ -158,11 +158,12 @@ function JsonNode({
   );
 }
 
-type EnvKey = 'test' | 'prod';
+type EnvKey = 'test' | 'prod' | 'openclaw';
 
 const ENV = {
   test: 'https://pubapp.shb.ltd/',
   prod: 'https://cloud.shb.ltd/',
+  openclaw: 'https://warranty-gay-bikini-flip.trycloudflare.com/',
 } as const satisfies Record<EnvKey, string>;
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
@@ -356,6 +357,7 @@ export default function AfterSalesApiPage() {
               >
                 <option value="test">测试环境</option>
                 <option value="prod">生产环境（独立端）</option>
+                <option value="openclaw">OpenClaw</option>
               </select>
             </label>
 

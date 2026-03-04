@@ -10,6 +10,7 @@ type ProxyRequest = {
 const ALLOWED_ORIGINS = new Set([
   'https://pubapp.shb.ltd',
   'https://cloud.shb.ltd',
+  'https://warranty-gay-bikini-flip.trycloudflare.com'
 ]);
 
 function isAllowedTarget(targetUrl: URL) {
