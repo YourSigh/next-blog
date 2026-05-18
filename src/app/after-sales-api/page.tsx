@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { copyToClipboard } from '../components/Toast';
 
 // JSON 树形视图组件（控制台风格：key/value 同行显示，可折叠）
 function JsonTreeView({ data }: { data: unknown }) {
@@ -264,11 +265,7 @@ export default function AfterSalesApiPage() {
 
   async function copyResponse() {
     if (!respBody) return;
-    try {
-      await navigator.clipboard.writeText(respBody);
-    } catch {
-      // 忽略无剪贴板权限的情况
-    }
+    await copyToClipboard(respBody, '响应已复制');
   }
 
   async function send() {

@@ -1,6 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { copyToClipboard } from '../components/Toast';
+
+function toBase64(text: string): string {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(text, 'utf-8').toString('base64');
+  }
+  return btoa(unescape(encodeURIComponent(text)));
+}
+
+function fromBase64(encoded: string): string {
+  return decodeURIComponent(escape(atob(encoded)));
+}
 
 // 简单的 Markdown 渲染函数（不依赖外部库）
 function renderMarkdown(md: string): string {
@@ -20,10 +32,17 @@ function renderMarkdown(md: string): string {
 
   // 先处理代码块（避免内部内容被其他规则处理）
   const codeBlocks: string[] = [];
-  html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+  html = html.replace(/```(\w+)?(?:\r?\n)?([\s\S]*?)```/g, (_match, lang, code) => {
     const id = `__CODE_BLOCK_${codeBlocks.length}__`;
-    const escaped = escapeHtml(code.trim());
-    codeBlocks.push(`<pre><code class="language-${lang || 'text'}">${escaped}</code></pre>`);
+    const raw = code.trim();
+    const escaped = escapeHtml(raw);
+    const encoded = toBase64(raw);
+    codeBlocks.push(
+      `<div class="md-code-block">` +
+        `<button type="button" class="md-code-copy-btn" data-code="${encoded}" aria-label="复制代码">复制</button>` +
+        `<pre><code class="language-${lang || 'text'}">${escaped}</code></pre>` +
+      `</div>`
+    );
     return id;
   });
 
@@ -119,7 +138,16 @@ function renderMarkdown(md: string): string {
       const trimmed = para.trim();
       if (!trimmed) return '';
       // 如果已经是 HTML 标签（标题、列表、代码块等），不包装
-      if (trimmed.startsWith('<') && (trimmed.startsWith('<h') || trimmed.startsWith('<ul') || trimmed.startsWith('<ol') || trimmed.startsWith('<pre') || trimmed.startsWith('<blockquote') || trimmed.startsWith('<hr'))) {
+      if (
+        trimmed.startsWith('<') &&
+        (trimmed.startsWith('<h') ||
+          trimmed.startsWith('<ul') ||
+          trimmed.startsWith('<ol') ||
+          trimmed.startsWith('<pre') ||
+          trimmed.startsWith('<div class="md-code-block"') ||
+          trimmed.startsWith('<blockquote') ||
+          trimmed.startsWith('<hr'))
+      ) {
         return trimmed;
       }
       return `<p>${trimmed}</p>`;
@@ -138,7 +166,6 @@ const STORAGE_KEY = 'markdown-editor-content';
 export default function MarkdownEditorPage() {
   const [content, setContent] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-
   // 从 localStorage 恢复内容
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -160,6 +187,17 @@ export default function MarkdownEditorPage() {
       return () => clearTimeout(timeoutId);
     }
   }, [content, isLoading]);
+
+  const handlePreviewClick = useCallback(async (e: React.MouseEvent<HTMLDivElement>) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.md-code-copy-btn');
+    if (!btn) return;
+
+    e.preventDefault();
+    const encoded = btn.getAttribute('data-code');
+    if (!encoded) return;
+
+    await copyToClipboard(fromBase64(encoded), '代码已复制');
+  }, []);
 
   // 下载为 .md 文件
   function downloadAsMarkdown() {
@@ -315,15 +353,17 @@ export default function MarkdownEditorPage() {
             预览
           </div>
           <div
+            className="markdown-preview"
             style={{
               flex: 1,
               padding: 24,
               overflow: 'auto',
               lineHeight: 1.8,
             }}
-            className="markdown-preview"
-            dangerouslySetInnerHTML={{ __html: renderedHtml }}
-          />
+            onClick={handlePreviewClick}
+          >
+            <div dangerouslySetInnerHTML={{ __html: renderedHtml }} />
+          </div>
         </div>
       </div>
     </div>
