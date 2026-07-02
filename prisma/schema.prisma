@@ -6,3 +6,20 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+
+model OpsLoginThrottle {
+  scopeHash       String    @id @db.VarChar(64)
+  failureCount    Int       @default(0)
+  windowStartedAt DateTime  @db.DateTime(3)
+  lockedUntil     DateTime? @db.DateTime(3)
+  updatedAt       DateTime  @updatedAt @db.DateTime(3)
+}
+
+model OpsSession {
+  tokenHash String   @id @db.VarChar(64)
+  username  String   @db.VarChar(191)
+  expiresAt DateTime @db.DateTime(3)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+
+  @@index([expiresAt])
+}

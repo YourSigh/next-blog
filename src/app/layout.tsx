@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import TopNav from "./components/TopNav";
-import CursorTrail from "./components/CursorTrail";
 import Providers from "./components/Providers";
+import AppShell from "./components/AppShell";
 
 export const metadata: Metadata = {
   title: "绿桶的小世界",
@@ -18,9 +17,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         <Providers>
-          <CursorTrail />
-          <TopNav />
-          <main className="appMain">{children}</main>
+          <AppShell>{children}</AppShell>
         </Providers>
       </body>
     </html>

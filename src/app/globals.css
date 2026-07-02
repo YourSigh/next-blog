@@ -323,6 +323,10 @@ body {
   padding-top: var(--app-header-h);
 }
 
+.opsMain {
+  min-height: 100vh;
+}
+
 /* 只有“点亮/开灯”(body 有 lights-on)时才显示导航 */
 .lights-on .appHeader {
   opacity: 1;

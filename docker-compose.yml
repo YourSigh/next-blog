@@ -4,10 +4,26 @@ services:
     build:
       context: .
       dockerfile: dockerfile
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
-      - NODE_ENV=production
+      NODE_ENV: production
+      DATABASE_URL: ${COUNTDOWN_DATABASE_URL:?COUNTDOWN_DATABASE_URL is required}
+      OPS_ADMIN_USERNAME: ${OPS_ADMIN_USERNAME:?OPS_ADMIN_USERNAME is required}
+      OPS_ADMIN_PASSWORD_HASH: ${OPS_ADMIN_PASSWORD_HASH:?OPS_ADMIN_PASSWORD_HASH is required}
+      OPS_SESSION_SECRET: ${OPS_SESSION_SECRET:?OPS_SESSION_SECRET is required}
+      OPS_GITHUB_TOKEN: ${OPS_GITHUB_TOKEN:?OPS_GITHUB_TOKEN is required}
+      OPS_GITHUB_OWNER: ${OPS_GITHUB_OWNER:-YourSigh}
+      OPS_GITHUB_REPOSITORY: ${OPS_GITHUB_REPOSITORY:-countdown}
+      OPS_GITHUB_REF: ${OPS_GITHUB_REF:-main}
+      OPS_COUNTDOWN_HEALTH_URL: ${OPS_COUNTDOWN_HEALTH_URL:-http://countdown-api:4000/health}
+      OPS_RELEASES_DIR: /app/releases
+      OPS_LOGIN_MAX_FAILURES: ${OPS_LOGIN_MAX_FAILURES:-5}
+      OPS_LOGIN_WINDOW_MINUTES: ${OPS_LOGIN_WINDOW_MINUTES:-15}
+      OPS_LOGIN_LOCK_MINUTES: ${OPS_LOGIN_LOCK_MINUTES:-60}
+      OPS_SESSION_HOURS: ${OPS_SESSION_HOURS:-12}
+    volumes:
+      - ${COUNTDOWN_RELEASES_DIR:-/opt/countdown/releases}:/app/releases:ro
     restart: unless-stopped
     networks:
       - blog-network
@@ -22,6 +38,7 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./public:/var/www/blog-fe:ro
+      - ${COUNTDOWN_RELEASES_DIR:-/opt/countdown/releases}:/var/www/countdown-releases:ro
       - /www/yoursigh.top/ssl:/www/yoursigh.top/ssl:ro
     depends_on:
       - next-blog
