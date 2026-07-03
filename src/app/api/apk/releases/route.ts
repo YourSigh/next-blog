@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
-import { hasDownloadSession } from "@/lib/ops/download-auth";
+import {
+  createMobileDownloadToken,
+  hasDownloadSession,
+} from "@/lib/ops/download-auth";
 import { listReleases } from "@/lib/ops/releases";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+const APK_PUBLIC_ORIGIN = "https://yoursigh.top";
 
 export async function GET() {
   if (!(await hasDownloadSession())) {
@@ -11,15 +15,24 @@ export async function GET() {
   }
 
   try {
-    const releases = (await listReleases()).map((release) => ({
-      filename: release.filename,
-      size: release.size,
-      modifiedAt: release.modifiedAt,
-      commit: release.commit,
-      notes: release.notes,
-      version: release.version,
-      versionCode: release.versionCode,
-    }));
+    const releases = (await listReleases()).map((release) => {
+      const token = createMobileDownloadToken(release.filename);
+      const downloadUrl = new URL("/api/apk/mobile-download", APK_PUBLIC_ORIGIN);
+      downloadUrl.searchParams.set("file", release.filename);
+      downloadUrl.searchParams.set("expires", String(token.expiresAt));
+      downloadUrl.searchParams.set("signature", token.signature);
+
+      return {
+        filename: release.filename,
+        size: release.size,
+        modifiedAt: release.modifiedAt,
+        commit: release.commit,
+        notes: release.notes,
+        version: release.version,
+        versionCode: release.versionCode,
+        downloadUrl: downloadUrl.toString(),
+      };
+    });
     return NextResponse.json(
       { releases },
       { headers: { "Cache-Control": "private, no-store" } },

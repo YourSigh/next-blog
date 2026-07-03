@@ -12,6 +12,8 @@ App 可通过公开的 `/api/apk/latest` 读取最新版本号与更新说明；
 正式版 App 输入下载口令后，可通过 `/api/apk/mobile-download` 换取 10 分钟有效的临时下载地址；
 下载地址交给 Android 系统下载管理器，不会把共享口令写入 APK。
 网页端下载仍需在独立下载页验证共享口令。
+验证后的网页同样使用短时签名直链，避免 Android 系统下载器因无法继承 HttpOnly Cookie
+而出现 `0 B/s`。
 
 ### 1. 复用 Countdown MySQL
 

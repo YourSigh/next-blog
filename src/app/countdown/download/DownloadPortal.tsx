@@ -11,6 +11,7 @@ type Release = {
   notes?: string;
   version?: string;
   versionCode?: number;
+  downloadUrl: string;
 };
 
 type ViewState = "loading" | "locked" | "ready";
@@ -168,7 +169,7 @@ export default function DownloadPortal() {
                       </div>
                       <a
                         className={styles.downloadButton}
-                        href={`/api/apk/download?file=${encodeURIComponent(release.filename)}`}
+                        href={release.downloadUrl}
                         download={release.filename}
                       >
                         下载 APK
