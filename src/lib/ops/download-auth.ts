@@ -4,6 +4,7 @@ import { getApkDownloadConfig } from "./config";
 import { ensureOpsSchema, opsPrisma } from "./db";
 
 export const APK_DOWNLOAD_COOKIE = "apk_download_session";
+const MOBILE_DOWNLOAD_TOKEN_TTL_MS = 10 * 60_000;
 
 type LockState = {
   locked: boolean;
@@ -101,6 +102,34 @@ export function createDownloadSession() {
     token: `${payload}.${sign(payload)}`,
     expiresAt,
   };
+}
+
+export function createMobileDownloadToken(filename: string) {
+  const expiresAt = Date.now() + MOBILE_DOWNLOAD_TOKEN_TTL_MS;
+  return {
+    expiresAt,
+    signature: sign(`apk-mobile-download:${filename}:${expiresAt}`),
+  };
+}
+
+export function verifyMobileDownloadToken(
+  filename: string,
+  expiresAt: number,
+  signature: string,
+): boolean {
+  if (
+    !Number.isSafeInteger(expiresAt) ||
+    expiresAt <= Date.now() ||
+    expiresAt > Date.now() + MOBILE_DOWNLOAD_TOKEN_TTL_MS + 60_000 ||
+    !signature
+  ) {
+    return false;
+  }
+
+  return safeTextEqual(
+    signature,
+    sign(`apk-mobile-download:${filename}:${expiresAt}`),
+  );
 }
 
 export async function hasDownloadSession(): Promise<boolean> {

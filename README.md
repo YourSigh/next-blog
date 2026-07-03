@@ -9,7 +9,9 @@
 环境变量 `APK_DOWNLOAD_ACCESS_KEY` 配置，验证成功后签发 7 天有效的 HttpOnly Cookie；
 失败次数会按 IP 持久化限流。页面仅返回服务器 APK、commit 和更新说明，不暴露 GitHub 地址。
 App 可通过公开的 `/api/apk/latest` 读取最新版本号与更新说明；该接口不返回 APK 文件地址，
-实际下载仍需在独立下载页验证共享口令。
+正式版 App 输入下载口令后，可通过 `/api/apk/mobile-download` 换取 10 分钟有效的临时下载地址；
+下载地址交给 Android 系统下载管理器，不会把共享口令写入 APK。
+网页端下载仍需在独立下载页验证共享口令。
 
 ### 1. 复用 Countdown MySQL
 
