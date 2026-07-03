@@ -7,13 +7,16 @@ import TopNav from "./TopNav";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const isOpsPage = pathname.startsWith("/ops/") || pathname === "/ops";
+  const isStandalonePage =
+    pathname.startsWith("/ops/") ||
+    pathname === "/ops" ||
+    pathname === "/countdown/download";
 
   return (
     <>
-      {!isOpsPage && <CursorTrail />}
-      {!isOpsPage && <TopNav />}
-      <main className={isOpsPage ? "opsMain" : "appMain"}>{children}</main>
+      {!isStandalonePage && <CursorTrail />}
+      {!isStandalonePage && <TopNav />}
+      <main className={isStandalonePage ? "opsMain" : "appMain"}>{children}</main>
     </>
   );
 }

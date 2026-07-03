@@ -83,7 +83,7 @@ function RunList({ runs }: { runs: WorkflowRun[] }) {
               <strong>{state.label}</strong>
               <small>{run.commit} · {run.actor} · {formatTime(run.createdAt)}</small>
             </span>
-            <span aria-hidden="true">↗</span>
+            <span aria-hidden="true">GitHub 日志 ↗</span>
           </a>
         );
       })}
@@ -259,7 +259,7 @@ export default function OpsConsole() {
                 {busy === "build-android" ? "提交中…" : "云端构建"}
               </button>
             </div>
-            <p>通过 EAS 云端生成签名 APK，完成后自动上传到服务器发布目录。</p>
+            <p>在 GitHub Runner 上执行 EAS local release 构建，完成后自动上传到服务器发布目录。</p>
             <RunList runs={dashboard?.workflows.buildAndroid ?? []} />
           </section>
         </div>
@@ -279,7 +279,12 @@ export default function OpsConsole() {
                     <strong>{release.filename}</strong>
                     <small>{formatSize(release.size)} · {formatTime(release.modifiedAt)}{release.commit ? ` · ${release.commit}` : ""}</small>
                   </div>
-                  <a href={`/api/ops/releases/download?file=${encodeURIComponent(release.filename)}`}>下载 APK</a>
+                  <a
+                    href={`/api/ops/releases/download?file=${encodeURIComponent(release.filename)}`}
+                    download={release.filename}
+                  >
+                    从服务器下载
+                  </a>
                 </div>
               ))}
             </div>

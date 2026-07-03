@@ -44,3 +44,19 @@ export function getGitHubConfig() {
 export function getReleasesDirectory(): string {
   return process.env.OPS_RELEASES_DIR?.trim() || "/app/releases";
 }
+
+export function getApkDownloadConfig() {
+  const sessionSecret = required("OPS_SESSION_SECRET");
+  if (sessionSecret.length < 32) {
+    throw new Error("OPS_SESSION_SECRET 至少需要 32 个字符");
+  }
+
+  return {
+    accessKey: required("APK_DOWNLOAD_ACCESS_KEY"),
+    sessionSecret,
+    maxFailures: positiveInteger("APK_DOWNLOAD_MAX_FAILURES", 5),
+    failureWindowMinutes: positiveInteger("APK_DOWNLOAD_WINDOW_MINUTES", 15),
+    lockMinutes: positiveInteger("APK_DOWNLOAD_LOCK_MINUTES", 60),
+    sessionDays: positiveInteger("APK_DOWNLOAD_SESSION_DAYS", 7),
+  };
+}

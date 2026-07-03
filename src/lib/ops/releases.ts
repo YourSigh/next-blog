@@ -10,6 +10,7 @@ export type OpsRelease = {
   modifiedAt: string;
   commit?: string;
   runUrl?: string;
+  notes?: string;
 };
 
 export function isSafeReleaseFilename(filename: string): boolean {
@@ -31,7 +32,7 @@ export async function listReleases(): Promise<OpsRelease[]> {
     names.filter(isSafeReleaseFilename).map(async (filename) => {
       const filePath = path.join(directory, filename);
       const fileStat = await stat(filePath);
-      let metadata: { commit?: string; runUrl?: string } = {};
+      let metadata: { commit?: string; runUrl?: string; notes?: string } = {};
 
       try {
         metadata = JSON.parse(
@@ -47,11 +48,14 @@ export async function listReleases(): Promise<OpsRelease[]> {
         modifiedAt: fileStat.mtime.toISOString(),
         commit: metadata.commit,
         runUrl: metadata.runUrl,
+        notes: metadata.notes,
       };
     }),
   );
 
-  return releases.sort(
-    (left, right) => Date.parse(right.modifiedAt) - Date.parse(left.modifiedAt),
-  );
+  return releases
+    .sort(
+      (left, right) => Date.parse(right.modifiedAt) - Date.parse(left.modifiedAt),
+    )
+    .slice(0, 5);
 }
