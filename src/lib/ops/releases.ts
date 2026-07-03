@@ -11,6 +11,8 @@ export type OpsRelease = {
   commit?: string;
   runUrl?: string;
   notes?: string;
+  version?: string;
+  versionCode?: number;
 };
 
 export function isSafeReleaseFilename(filename: string): boolean {
@@ -32,7 +34,13 @@ export async function listReleases(): Promise<OpsRelease[]> {
     names.filter(isSafeReleaseFilename).map(async (filename) => {
       const filePath = path.join(directory, filename);
       const fileStat = await stat(filePath);
-      let metadata: { commit?: string; runUrl?: string; notes?: string } = {};
+      let metadata: {
+        commit?: string;
+        runUrl?: string;
+        notes?: string;
+        version?: string;
+        versionCode?: number;
+      } = {};
 
       try {
         metadata = JSON.parse(
@@ -49,6 +57,10 @@ export async function listReleases(): Promise<OpsRelease[]> {
         commit: metadata.commit,
         runUrl: metadata.runUrl,
         notes: metadata.notes,
+        version: metadata.version,
+        versionCode: Number.isInteger(metadata.versionCode)
+          ? metadata.versionCode
+          : undefined,
       };
     }),
   );

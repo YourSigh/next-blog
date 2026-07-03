@@ -8,6 +8,8 @@
 独立安装包页面为 `/countdown/download`，同样不出现在博客菜单中。共享口令通过服务器
 环境变量 `APK_DOWNLOAD_ACCESS_KEY` 配置，验证成功后签发 7 天有效的 HttpOnly Cookie；
 失败次数会按 IP 持久化限流。页面仅返回服务器 APK、commit 和更新说明，不暴露 GitHub 地址。
+App 可通过公开的 `/api/apk/latest` 读取最新版本号与更新说明；该接口不返回 APK 文件地址，
+实际下载仍需在独立下载页验证共享口令。
 
 ### 1. 复用 Countdown MySQL
 

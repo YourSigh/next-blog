@@ -9,6 +9,8 @@ type Release = {
   modifiedAt: string;
   commit?: string;
   notes?: string;
+  version?: string;
+  versionCode?: number;
 };
 
 type ViewState = "loading" | "locked" | "ready";
@@ -156,6 +158,9 @@ export default function DownloadPortal() {
                       <div className={styles.releaseTitle}>
                         <div className={styles.badges}>
                           {index === 0 && <span className={styles.latest}>最新</span>}
+                          {release.version && (
+                            <span className={styles.commit}>v{release.version}</span>
+                          )}
                           {release.commit && <span className={styles.commit}>{release.commit}</span>}
                         </div>
                         <h3>{release.filename}</h3>

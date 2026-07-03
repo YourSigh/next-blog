@@ -17,6 +17,8 @@ export async function GET() {
       modifiedAt: release.modifiedAt,
       commit: release.commit,
       notes: release.notes,
+      version: release.version,
+      versionCode: release.versionCode,
     }));
     return NextResponse.json(
       { releases },
