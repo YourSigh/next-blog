@@ -9,8 +9,10 @@
 环境变量 `APK_DOWNLOAD_ACCESS_KEY` 配置，验证成功后签发 7 天有效的 HttpOnly Cookie；
 失败次数会按 IP 持久化限流。页面仅返回服务器 APK、commit 和更新说明，不暴露 GitHub 地址。
 App 可通过公开的 `/api/apk/latest` 读取最新版本号与更新说明；该接口不返回 APK 文件地址，
-正式版 App 输入下载口令后，可通过 `/api/apk/mobile-download` 换取 10 分钟有效的临时下载地址；
+正式版 App 通过 `/api/apk/mobile-download` 换取 10 分钟有效的临时下载地址；
 下载地址交给 Android 系统下载管理器，不会把共享口令写入 APK。
+新版 App 会复用已经激活设备的短期登录 Token，不再要求重复输入下载口令；旧版 App 的
+口令请求暂时保留兼容。
 网页端下载仍需在独立下载页验证共享口令。
 验证后的网页同样使用短时签名直链，避免 Android 系统下载器因无法继承 HttpOnly Cookie
 而出现 `0 B/s`。

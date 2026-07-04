@@ -13,6 +13,27 @@ import { getClientIp } from "@/lib/ops/request";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const APK_PUBLIC_ORIGIN = "https://yoursigh.top";
+const COUNTDOWN_AUTH_STATUS_URL = "http://countdown-api:4000/v1/auth/status";
+
+async function validateAppAuthorization(request: Request) {
+  const authorization = request.headers.get("authorization") || "";
+  if (!authorization.startsWith("Bearer ")) return "missing" as const;
+
+  try {
+    const response = await fetch(COUNTDOWN_AUTH_STATUS_URL, {
+      headers: { Authorization: authorization },
+      cache: "no-store",
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (response.ok) return "valid" as const;
+    if (response.status === 401 || response.status === 403) {
+      return "invalid" as const;
+    }
+    return "unavailable" as const;
+  } catch {
+    return "unavailable" as const;
+  }
+}
 
 export async function POST(request: Request) {
   let body: { accessKey?: unknown; versionCode?: unknown };
@@ -26,41 +47,59 @@ export async function POST(request: Request) {
     ? body.accessKey.slice(0, 128)
     : "";
   const versionCode = Number(body.versionCode);
-  if (!accessKey) {
-    return NextResponse.json({ error: "请输入下载口令" }, { status: 400 });
-  }
   if (!Number.isSafeInteger(versionCode) || versionCode <= 0) {
     return NextResponse.json({ error: "版本信息无效" }, { status: 400 });
   }
 
   const ip = getClientIp(request);
   try {
-    const currentLock = await getDownloadLockState(ip);
-    if (currentLock.locked) {
+    const appAuthorization = await validateAppAuthorization(request);
+    if (appAuthorization === "invalid") {
       return NextResponse.json(
-        { error: "尝试次数过多，请稍后再试" },
-        {
-          status: 429,
-          headers: { "Retry-After": String(currentLock.retryAfterSeconds) },
-        },
+        { error: "设备登录已失效，请重新进入 App" },
+        { status: 401 },
+      );
+    }
+    if (appAuthorization === "unavailable") {
+      return NextResponse.json(
+        { error: "设备验证服务暂不可用" },
+        { status: 503 },
       );
     }
 
-    if (!verifyDownloadAccessKey(accessKey)) {
-      const nextLock = await recordDownloadFailure(ip);
-      return NextResponse.json(
-        {
-          error: nextLock.locked
-            ? "尝试次数过多，请稍后再试"
-            : "下载口令不正确",
-        },
-        {
-          status: nextLock.locked ? 429 : 401,
-          headers: nextLock.locked
-            ? { "Retry-After": String(nextLock.retryAfterSeconds) }
-            : undefined,
-        },
-      );
+    // 兼容已经安装的旧版 App；新版会直接使用设备登录 Token，不再要求口令。
+    if (appAuthorization === "missing") {
+      if (!accessKey) {
+        return NextResponse.json({ error: "需要设备登录凭证" }, { status: 401 });
+      }
+      const currentLock = await getDownloadLockState(ip);
+      if (currentLock.locked) {
+        return NextResponse.json(
+          { error: "尝试次数过多，请稍后再试" },
+          {
+            status: 429,
+            headers: { "Retry-After": String(currentLock.retryAfterSeconds) },
+          },
+        );
+      }
+
+      if (!verifyDownloadAccessKey(accessKey)) {
+        const nextLock = await recordDownloadFailure(ip);
+        return NextResponse.json(
+          {
+            error: nextLock.locked
+              ? "尝试次数过多，请稍后再试"
+              : "下载口令不正确",
+          },
+          {
+            status: nextLock.locked ? 429 : 401,
+            headers: nextLock.locked
+              ? { "Retry-After": String(nextLock.retryAfterSeconds) }
+              : undefined,
+          },
+        );
+      }
+      await clearDownloadFailures(ip);
     }
 
     const release = (await listReleases()).find(
@@ -73,7 +112,6 @@ export async function POST(request: Request) {
       );
     }
 
-    await clearDownloadFailures(ip);
     const token = createMobileDownloadToken(release.filename);
     const downloadUrl = new URL("/api/apk/mobile-download", APK_PUBLIC_ORIGIN);
     downloadUrl.searchParams.set("file", release.filename);
