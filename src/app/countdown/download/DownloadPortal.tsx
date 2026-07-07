@@ -93,11 +93,11 @@ export default function DownloadPortal() {
     <div className={styles.page}>
       <div className={styles.shell}>
         <header className={styles.header}>
-          <div className={styles.brand} aria-hidden="true">C</div>
+          <div className={styles.brand} aria-hidden="true"><span>C</span></div>
           <div>
             <p className={styles.eyebrow}>COUNTDOWN FOR ANDROID</p>
             <h1>安装包下载</h1>
-            <p className={styles.lead}>从私有服务器获取最新的 64 位 Android 安装包。</p>
+            <p className={styles.lead}>安全获取最新的 64 位 Android 安装包。</p>
           </div>
           {viewState === "ready" && (
             <button className={styles.lockButton} type="button" onClick={lockPage}>
@@ -115,6 +115,7 @@ export default function DownloadPortal() {
 
         {viewState === "locked" && (
           <section className={styles.unlockCard}>
+            <div className={styles.lockIcon} aria-hidden="true">⌁</div>
             <p className={styles.cardLabel}>PRIVATE RELEASE</p>
             <h2>输入访问口令</h2>
             <p>验证通过后即可查看版本说明并下载安装包。</p>
@@ -146,7 +147,7 @@ export default function DownloadPortal() {
                 <p className={styles.cardLabel}>SERVER RELEASES</p>
                 <h2>最近版本</h2>
               </div>
-              <span>{releases.length} 个安装包</span>
+              <span className={styles.releaseCount}><i />{releases.length} 个安装包</span>
             </div>
 
             {!releases.length ? (
@@ -172,7 +173,7 @@ export default function DownloadPortal() {
                         href={release.downloadUrl}
                         download={release.filename}
                       >
-                        下载 APK
+                        <span aria-hidden="true">↓</span> 下载 APK
                       </a>
                     </div>
                     <div className={styles.notes}>
@@ -186,7 +187,7 @@ export default function DownloadPortal() {
           </section>
         )}
 
-        <footer className={styles.footer}>仅支持 ARM64 Android 设备 · 文件由 yoursigh.top 提供</footer>
+        <footer className={styles.footer}><span />仅支持 ARM64 Android 设备 · 文件由 yoursigh.top 提供</footer>
       </div>
     </div>
   );

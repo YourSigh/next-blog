@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import styles from "./ops.module.css";
 
 type WorkflowRun = {
@@ -34,6 +34,76 @@ type Dashboard = {
 };
 
 type AuthState = "loading" | "anonymous" | "authenticated";
+type DispatchAction = "deploy-api" | "build-android";
+
+const actionCopy: Record<DispatchAction, { eyebrow: string; title: string; description: string; confirm: string }> = {
+  "deploy-api": {
+    eyebrow: "DEPLOY API",
+    title: "构建并部署后端？",
+    description: "将使用 main 分支的最新提交构建镜像、重启线上容器，并执行健康检查。",
+    confirm: "确认部署",
+  },
+  "build-android": {
+    eyebrow: "BUILD ANDROID",
+    title: "开始构建 Android APK？",
+    description: "将使用 main 分支的最新提交启动云端构建，完成后自动发布到下载页。",
+    confirm: "开始构建",
+  },
+};
+
+function ConfirmDialog({
+  action,
+  onCancel,
+  onConfirm,
+}: {
+  action: DispatchAction;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const copy = actionCopy[action];
+
+  useEffect(() => {
+    cancelButtonRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onCancel]);
+
+  return (
+    <div className={styles.dialogBackdrop} role="presentation" onMouseDown={onCancel}>
+      <div
+        className={styles.dialog}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dispatch-dialog-title"
+        aria-describedby="dispatch-dialog-description"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className={styles.dialogIcon} aria-hidden="true">
+          {action === "deploy-api" ? "API" : "APK"}
+        </div>
+        <p className={styles.dialogEyebrow}>{copy.eyebrow}</p>
+        <h2 id="dispatch-dialog-title">{copy.title}</h2>
+        <p id="dispatch-dialog-description">{copy.description}</p>
+        <div className={styles.dialogBranch}>
+          <span className={styles.branchDot} />
+          来源分支 <strong>main</strong>
+        </div>
+        <div className={styles.dialogActions}>
+          <button ref={cancelButtonRef} type="button" className={styles.dialogCancel} onClick={onCancel}>
+            取消
+          </button>
+          <button type="button" className={styles.dialogConfirm} onClick={onConfirm}>
+            {copy.confirm}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 async function jsonRequest<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -98,6 +168,7 @@ export default function OpsConsole() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [pendingAction, setPendingAction] = useState<DispatchAction | null>(null);
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -161,10 +232,8 @@ export default function OpsConsole() {
     }
   }
 
-  async function dispatch(action: "deploy-api" | "build-android") {
-    const label = action === "deploy-api" ? "构建并部署后端" : "构建 Android APK";
-    if (!window.confirm(`确定要${label}吗？任务将使用 main 分支最新提交。`)) return;
-
+  async function dispatch(action: DispatchAction) {
+    setPendingAction(null);
     setBusy(action);
     setMessage("");
     try {
@@ -182,20 +251,21 @@ export default function OpsConsole() {
   }
 
   if (authState === "loading") {
-    return <div className={styles.loading}>正在打开控制台…</div>;
+    return <div className={styles.loading}><span className={styles.loader} />正在打开控制台…</div>;
   }
 
   if (authState === "anonymous") {
     return (
       <div className={styles.page}>
         <div className={styles.loginCard}>
-          <div className={styles.brandMark}>C</div>
+          <div className={styles.brandMark}><span>C</span></div>
           <p className={styles.eyebrow}>PRIVATE CONSOLE</p>
           <h1 className={styles.loginTitle}>
             <span>Countdown</span>
             <span>发布控制台</span>
           </h1>
           <p className={styles.subtitle}>登录后才可构建、部署和下载安装包。</p>
+          <div className={styles.secureHint}><span />受保护的内部页面</div>
           <form onSubmit={login} className={styles.form}>
             <label>
               账号
@@ -219,9 +289,12 @@ export default function OpsConsole() {
     <div className={styles.page}>
       <div className={styles.console}>
         <header className={styles.header}>
-          <div>
+          <div className={styles.headerTitle}>
+            <div className={styles.brandMark}><span>C</span></div>
+            <div>
             <p className={styles.eyebrow}>COUNTDOWN OPS</p>
             <h1>发布控制台</h1>
+            </div>
           </div>
           <div className={styles.headerActions}>
             <span>{dashboard?.username}</span>
@@ -237,14 +310,14 @@ export default function OpsConsole() {
             <strong>Countdown API</strong>
             <small>{dashboard?.health.ok ? "服务运行正常" : `服务异常${dashboard?.health.status ? `（${dashboard.health.status}）` : ""}`}</small>
           </div>
-          <button className={styles.ghostButton} onClick={loadDashboard}>刷新</button>
+            <button className={styles.ghostButton} onClick={loadDashboard}><span aria-hidden="true">↻</span> 刷新</button>
         </section>
 
         <div className={styles.grid}>
           <section className={styles.card}>
             <div className={styles.cardHeader}>
               <div><span className={styles.cardIcon}>API</span><h2>后端服务</h2></div>
-              <button onClick={() => dispatch("deploy-api")} disabled={Boolean(busy)}>
+              <button onClick={() => setPendingAction("deploy-api")} disabled={Boolean(busy)}>
                 {busy === "deploy-api" ? "提交中…" : "构建并部署"}
               </button>
             </div>
@@ -255,7 +328,7 @@ export default function OpsConsole() {
           <section className={styles.card}>
             <div className={styles.cardHeader}>
               <div><span className={styles.cardIcon}>APK</span><h2>Android</h2></div>
-              <button onClick={() => dispatch("build-android")} disabled={Boolean(busy)}>
+              <button onClick={() => setPendingAction("build-android")} disabled={Boolean(busy)}>
                 {busy === "build-android" ? "提交中…" : "云端构建"}
               </button>
             </div>
@@ -291,6 +364,13 @@ export default function OpsConsole() {
           )}
         </section>
       </div>
+      {pendingAction && (
+        <ConfirmDialog
+          action={pendingAction}
+          onCancel={() => setPendingAction(null)}
+          onConfirm={() => dispatch(pendingAction)}
+        />
+      )}
     </div>
   );
 }
