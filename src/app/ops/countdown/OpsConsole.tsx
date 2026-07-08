@@ -35,6 +35,9 @@ type Dashboard = {
 
 type AuthState = "loading" | "anonymous" | "authenticated";
 type DispatchAction = "deploy-api" | "build-android";
+type PendingDialog =
+  | { kind: "dispatch"; action: DispatchAction }
+  | { kind: "cancel-run"; action: DispatchAction; run: WorkflowRun };
 
 const actionCopy: Record<DispatchAction, { eyebrow: string; title: string; description: string; confirm: string }> = {
   "deploy-api": {
@@ -52,16 +55,32 @@ const actionCopy: Record<DispatchAction, { eyebrow: string; title: string; descr
 };
 
 function ConfirmDialog({
-  action,
+  dialog,
   onCancel,
   onConfirm,
 }: {
-  action: DispatchAction;
+  dialog: PendingDialog;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
-  const copy = actionCopy[action];
+  const isCancelRun = dialog.kind === "cancel-run";
+  const copy = isCancelRun
+    ? {
+        eyebrow: "CANCEL ACTION",
+        title: "取消这次 GitHub Action？",
+        description: `将请求 GitHub 停止「${dialog.run.title || "这条运行记录"}」。如果任务已经结束，GitHub 会返回不可取消。`,
+        confirm: "确认取消",
+        icon: "STOP",
+        metaLabel: "Run",
+        metaValue: dialog.run.commit,
+      }
+    : {
+        ...actionCopy[dialog.action],
+        icon: dialog.action === "deploy-api" ? "API" : "APK",
+        metaLabel: "来源分支",
+        metaValue: "main",
+      };
 
   useEffect(() => {
     cancelButtonRef.current?.focus();
@@ -83,20 +102,24 @@ function ConfirmDialog({
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className={styles.dialogIcon} aria-hidden="true">
-          {action === "deploy-api" ? "API" : "APK"}
+          {copy.icon}
         </div>
         <p className={styles.dialogEyebrow}>{copy.eyebrow}</p>
         <h2 id="dispatch-dialog-title">{copy.title}</h2>
         <p id="dispatch-dialog-description">{copy.description}</p>
         <div className={styles.dialogBranch}>
           <span className={styles.branchDot} />
-          来源分支 <strong>main</strong>
+          {copy.metaLabel} <strong>{copy.metaValue}</strong>
         </div>
         <div className={styles.dialogActions}>
           <button ref={cancelButtonRef} type="button" className={styles.dialogCancel} onClick={onCancel}>
             取消
           </button>
-          <button type="button" className={styles.dialogConfirm} onClick={onConfirm}>
+          <button
+            type="button"
+            className={`${styles.dialogConfirm} ${isCancelRun ? styles.dialogConfirmDanger : ""}`}
+            onClick={onConfirm}
+          >
             {copy.confirm}
           </button>
         </div>
@@ -139,22 +162,50 @@ function runState(run: WorkflowRun): { label: string; tone: string } {
   return { label: "失败", tone: "danger" };
 }
 
-function RunList({ runs }: { runs: WorkflowRun[] }) {
+function cancelBusyKey(runId: number): string {
+  return `cancel-run-${runId}`;
+}
+
+function RunList({
+  action,
+  busy,
+  runs,
+  onCancelRun,
+}: {
+  action: DispatchAction;
+  busy: string | null;
+  runs: WorkflowRun[];
+  onCancelRun: (action: DispatchAction, run: WorkflowRun) => void;
+}) {
   if (!runs.length) return <p className={styles.empty}>暂无运行记录</p>;
 
   return (
     <div className={styles.runList}>
       {runs.map((run) => {
         const state = runState(run);
+        const canCancel = run.status !== "completed";
+        const isCancelling = busy === cancelBusyKey(run.id);
         return (
-          <a key={run.id} href={run.url} target="_blank" rel="noreferrer" className={styles.runItem}>
-            <span className={`${styles.stateDot} ${styles[state.tone]}`} />
-            <span className={styles.runBody}>
-              <strong>{state.label}</strong>
-              <small>{run.commit} · {run.actor} · {formatTime(run.createdAt)}</small>
-            </span>
-            <span aria-hidden="true">GitHub 日志 ↗</span>
-          </a>
+          <div key={run.id} className={styles.runItem}>
+            <a href={run.url} target="_blank" rel="noreferrer" className={styles.runLink}>
+              <span className={`${styles.stateDot} ${styles[state.tone]}`} />
+              <span className={styles.runBody}>
+                <strong>{state.label}</strong>
+                <small>{run.commit} · {run.actor} · {formatTime(run.createdAt)}</small>
+              </span>
+              <span className={styles.runLog} aria-hidden="true">GitHub 日志 ↗</span>
+            </a>
+            {canCancel && (
+              <button
+                type="button"
+                className={styles.cancelRunButton}
+                onClick={() => onCancelRun(action, run)}
+                disabled={Boolean(busy)}
+              >
+                {isCancelling ? "取消中…" : "取消"}
+              </button>
+            )}
+          </div>
         );
       })}
     </div>
@@ -168,7 +219,7 @@ export default function OpsConsole() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const [pendingAction, setPendingAction] = useState<DispatchAction | null>(null);
+  const [pendingDialog, setPendingDialog] = useState<PendingDialog | null>(null);
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -233,7 +284,7 @@ export default function OpsConsole() {
   }
 
   async function dispatch(action: DispatchAction) {
-    setPendingAction(null);
+    setPendingDialog(null);
     setBusy(action);
     setMessage("");
     try {
@@ -248,6 +299,35 @@ export default function OpsConsole() {
     } finally {
       setBusy(null);
     }
+  }
+
+  async function cancelRun(action: DispatchAction, run: WorkflowRun) {
+    setPendingDialog(null);
+    setBusy(cancelBusyKey(run.id));
+    setMessage("");
+    try {
+      await jsonRequest("/api/ops/cancel", {
+        method: "POST",
+        body: JSON.stringify({ action, runId: run.id }),
+      });
+      setMessage("已向 GitHub 发送取消请求，状态会在几秒内同步。");
+      await loadDashboard();
+      window.setTimeout(loadDashboard, 3_000);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "取消失败");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function confirmPendingDialog() {
+    if (!pendingDialog) return;
+    if (pendingDialog.kind === "dispatch") {
+      void dispatch(pendingDialog.action);
+      return;
+    }
+
+    void cancelRun(pendingDialog.action, pendingDialog.run);
   }
 
   if (authState === "loading") {
@@ -317,23 +397,33 @@ export default function OpsConsole() {
           <section className={styles.card}>
             <div className={styles.cardHeader}>
               <div><span className={styles.cardIcon}>API</span><h2>后端服务</h2></div>
-              <button onClick={() => setPendingAction("deploy-api")} disabled={Boolean(busy)}>
+              <button onClick={() => setPendingDialog({ kind: "dispatch", action: "deploy-api" })} disabled={Boolean(busy)}>
                 {busy === "deploy-api" ? "提交中…" : "构建并部署"}
               </button>
             </div>
             <p>构建 amd64 镜像、推送阿里云、重启服务器容器，并自动健康检查。</p>
-            <RunList runs={dashboard?.workflows.deployApi ?? []} />
+            <RunList
+              action="deploy-api"
+              busy={busy}
+              runs={dashboard?.workflows.deployApi ?? []}
+              onCancelRun={(action, run) => setPendingDialog({ kind: "cancel-run", action, run })}
+            />
           </section>
 
           <section className={styles.card}>
             <div className={styles.cardHeader}>
               <div><span className={styles.cardIcon}>APK</span><h2>Android</h2></div>
-              <button onClick={() => setPendingAction("build-android")} disabled={Boolean(busy)}>
+              <button onClick={() => setPendingDialog({ kind: "dispatch", action: "build-android" })} disabled={Boolean(busy)}>
                 {busy === "build-android" ? "提交中…" : "云端构建"}
               </button>
             </div>
             <p>在 GitHub Runner 上执行 EAS local release 构建，完成后自动上传到服务器发布目录。</p>
-            <RunList runs={dashboard?.workflows.buildAndroid ?? []} />
+            <RunList
+              action="build-android"
+              busy={busy}
+              runs={dashboard?.workflows.buildAndroid ?? []}
+              onCancelRun={(action, run) => setPendingDialog({ kind: "cancel-run", action, run })}
+            />
           </section>
         </div>
 
@@ -364,11 +454,11 @@ export default function OpsConsole() {
           )}
         </section>
       </div>
-      {pendingAction && (
+      {pendingDialog && (
         <ConfirmDialog
-          action={pendingAction}
-          onCancel={() => setPendingAction(null)}
-          onConfirm={() => dispatch(pendingAction)}
+          dialog={pendingDialog}
+          onCancel={() => setPendingDialog(null)}
+          onConfirm={confirmPendingDialog}
         />
       )}
     </div>

@@ -103,3 +103,12 @@ export async function dispatchWorkflow(kind: OpsWorkflowKind, username: string) 
 
   return { requestId, ref: config.ref };
 }
+
+export async function cancelWorkflowRun(runId: number) {
+  const config = getGitHubConfig();
+  const path = `/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repository)}/actions/runs/${runId}/cancel`;
+
+  await githubRequest(path, { method: "POST" });
+
+  return { runId };
+}
