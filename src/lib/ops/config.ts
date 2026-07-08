@@ -45,6 +45,18 @@ export function getReleasesDirectory(): string {
   return process.env.OPS_RELEASES_DIR?.trim() || "/app/releases";
 }
 
+export function getDeployWebhookConfig() {
+  const secret = required("DEPLOY_WEBHOOK_SECRET");
+  if (secret.length < 32) {
+    throw new Error("DEPLOY_WEBHOOK_SECRET 至少需要 32 个字符");
+  }
+
+  return {
+    secret,
+    queueDir: process.env.OPS_DEPLOY_QUEUE_DIR?.trim() || "/app/deploy-queue",
+  };
+}
+
 export function getApkDownloadConfig() {
   const sessionSecret = required("OPS_SESSION_SECRET");
   if (sessionSecret.length < 32) {

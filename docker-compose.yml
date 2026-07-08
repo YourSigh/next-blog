@@ -23,12 +23,15 @@ services:
       OPS_GITHUB_REF: ${OPS_GITHUB_REF:-main}
       OPS_COUNTDOWN_HEALTH_URL: ${OPS_COUNTDOWN_HEALTH_URL:-http://countdown-api:4000/health}
       OPS_RELEASES_DIR: /app/releases
+      OPS_DEPLOY_QUEUE_DIR: /app/deploy-queue
+      DEPLOY_WEBHOOK_SECRET: ${DEPLOY_WEBHOOK_SECRET:?DEPLOY_WEBHOOK_SECRET is required}
       OPS_LOGIN_MAX_FAILURES: ${OPS_LOGIN_MAX_FAILURES:-5}
       OPS_LOGIN_WINDOW_MINUTES: ${OPS_LOGIN_WINDOW_MINUTES:-15}
       OPS_LOGIN_LOCK_MINUTES: ${OPS_LOGIN_LOCK_MINUTES:-60}
       OPS_SESSION_HOURS: ${OPS_SESSION_HOURS:-12}
     volumes:
-      - ${COUNTDOWN_RELEASES_DIR:-/opt/countdown/releases}:/app/releases:ro
+      - ${COUNTDOWN_RELEASES_DIR:-/docker/countdown/releases}:/app/releases
+      - ${COUNTDOWN_DEPLOY_QUEUE_DIR:-/docker/countdown/deploy-queue}:/app/deploy-queue
     restart: unless-stopped
     networks:
       - blog-network
@@ -43,7 +46,7 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./public:/var/www/blog-fe:ro
-      - ${COUNTDOWN_RELEASES_DIR:-/opt/countdown/releases}:/var/www/countdown-releases:ro
+      - ${COUNTDOWN_RELEASES_DIR:-/docker/countdown/releases}:/var/www/countdown-releases:ro
       - /www/yoursigh.top/ssl:/www/yoursigh.top/ssl:ro
     depends_on:
       - next-blog
