@@ -57,6 +57,10 @@ export function getDeployWebhookConfig() {
   };
 }
 
+export function getBackupQueueDirectory(): string {
+  return process.env.OPS_BACKUP_QUEUE_DIR?.trim() || "/app/backup-queue";
+}
+
 export function getApkDownloadConfig() {
   const sessionSecret = required("OPS_SESSION_SECRET");
   if (sessionSecret.length < 32) {

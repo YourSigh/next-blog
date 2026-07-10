@@ -23,6 +23,35 @@ type Release = {
   runUrl?: string;
 };
 
+type BackupKind = "database" | "complete";
+type MediaCategoryStats = { bytes: number; files: number };
+type MediaStats = {
+  measuredAt: string;
+  firstFileAt: string | null;
+  lastFileAt: string | null;
+  observedDays: number;
+  totalBytes: number;
+  totalFiles: number;
+  averageBytesPerDay: number;
+  recent7DayBytes: number;
+  recent7DayAverageBytes: number;
+  categories: {
+    voice: MediaCategoryStats;
+    chatImages: MediaCategoryStats;
+    timelineImages: MediaCategoryStats;
+    other: MediaCategoryStats;
+  };
+};
+type BackupTask = {
+  id: string;
+  kind: BackupKind | "stats";
+  state: "pending" | "processing" | "done" | "failed";
+  artifactFileName?: string;
+  artifactSize?: number;
+  mediaStats?: MediaStats;
+  error?: string;
+};
+
 type Dashboard = {
   username: string;
   health: { ok: boolean; status: number | null; error?: string };
@@ -37,7 +66,10 @@ type AuthState = "loading" | "anonymous" | "authenticated";
 type DispatchAction = "deploy-api" | "build-android";
 type PendingDialog =
   | { kind: "dispatch"; action: DispatchAction }
-  | { kind: "cancel-run"; action: DispatchAction; run: WorkflowRun };
+  | { kind: "cancel-run"; action: DispatchAction; run: WorkflowRun }
+  | { kind: "backup"; backup: BackupKind };
+
+const MEDIA_BUDGET_BYTES = 5 * 1024 * 1024 * 1024;
 
 const actionCopy: Record<DispatchAction, { eyebrow: string; title: string; description: string; confirm: string }> = {
   "deploy-api": {
@@ -65,6 +97,7 @@ function ConfirmDialog({
 }) {
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const isCancelRun = dialog.kind === "cancel-run";
+  const isBackup = dialog.kind === "backup";
   const copy = isCancelRun
     ? {
         eyebrow: "CANCEL ACTION",
@@ -75,7 +108,27 @@ function ConfirmDialog({
         metaLabel: "Run",
         metaValue: dialog.run.commit,
       }
-    : {
+    : isBackup
+      ? dialog.backup === "database"
+        ? {
+            eyebrow: "DATABASE BACKUP",
+            title: "生成并下载数据库备份？",
+            description: "服务器会在线生成一致的压缩 SQL 文件，浏览器开始下载后立即删除临时文件。",
+            confirm: "生成并下载",
+            icon: "DB",
+            metaLabel: "包含内容",
+            metaValue: "全部数据库表",
+          }
+        : {
+            eyebrow: "COMPLETE BACKUP",
+            title: "生成完整备份包？",
+            description: "将短暂暂停 API 写入以建立一致快照，再打包数据库、聊天图片、时间线图片和语音。文件较多时需要等待几分钟。",
+            confirm: "生成完整备份",
+            icon: "ALL",
+            metaLabel: "服务器保留",
+            metaValue: "下载后立即删除",
+          }
+      : {
         ...actionCopy[dialog.action],
         icon: dialog.action === "deploy-api" ? "API" : "APK",
         metaLabel: "来源分支",
@@ -155,6 +208,37 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+function mediaForecast(stats: MediaStats): string {
+  const sample = `已统计 ${stats.totalFiles} 个文件，覆盖约 ${stats.observedDays} 天。`;
+  if (stats.averageBytesPerDay <= 0) {
+    return `${sample}当前还没有足够数据估算增长速度。`;
+  }
+  if (stats.totalBytes >= MEDIA_BUDGET_BYTES) {
+    return `${sample}附件已经达到预留的 5 GB 上限，建议尽快执行清理策略。`;
+  }
+
+  const days = Math.ceil(
+    (MEDIA_BUDGET_BYTES - stats.totalBytes) / stats.averageBytesPerDay,
+  );
+  const date = new Date(Date.now() + days * 24 * 60 * 60_000);
+  const dateLabel = new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+  return `${sample}按历史日均增长，预计约 ${days} 天后（${dateLabel}）达到 5 GB。`;
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
 function runState(run: WorkflowRun): { label: string; tone: string } {
   if (run.status !== "completed") return { label: "进行中", tone: "running" };
   if (run.conclusion === "success") return { label: "成功", tone: "success" };
@@ -218,8 +302,12 @@ export default function OpsConsole() {
   const [password, setPassword] = useState("");
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [statsBusy, setStatsBusy] = useState(false);
+  const [mediaStats, setMediaStats] = useState<MediaStats | null>(null);
+  const [mediaStatsError, setMediaStatsError] = useState("");
   const [message, setMessage] = useState("");
   const [pendingDialog, setPendingDialog] = useState<PendingDialog | null>(null);
+  const mediaStatsRequestedRef = useRef(false);
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -235,6 +323,40 @@ export default function OpsConsole() {
       }
     }
   }, []);
+
+  const waitForBackupTask = useCallback(async (id: string) => {
+    const deadline = Date.now() + 30 * 60_000;
+    while (Date.now() < deadline) {
+      const result = await jsonRequest<{ task: BackupTask }>(
+        `/api/ops/backups?id=${encodeURIComponent(id)}`,
+      );
+      if (result.task.state === "done") return result.task;
+      if (result.task.state === "failed") {
+        throw new Error(result.task.error || "备份生成失败");
+      }
+      await wait(1_500);
+    }
+    throw new Error("备份生成超时，请检查服务器 Agent 状态");
+  }, []);
+
+  const loadMediaStats = useCallback(async () => {
+    if (statsBusy) return;
+    setStatsBusy(true);
+    setMediaStatsError("");
+    try {
+      const result = await jsonRequest<{ task: BackupTask }>("/api/ops/backups", {
+        method: "POST",
+        body: JSON.stringify({ kind: "stats" }),
+      });
+      const task = await waitForBackupTask(result.task.id);
+      if (!task.mediaStats) throw new Error("服务器没有返回媒体容量统计");
+      setMediaStats(task.mediaStats);
+    } catch (error) {
+      setMediaStatsError(error instanceof Error ? error.message : "媒体容量统计失败");
+    } finally {
+      setStatsBusy(false);
+    }
+  }, [statsBusy, waitForBackupTask]);
 
   useEffect(() => {
     jsonRequest<{ authenticated: boolean }>("/api/ops/auth/status")
@@ -253,6 +375,13 @@ export default function OpsConsole() {
     const timer = window.setInterval(loadDashboard, 10_000);
     return () => window.clearInterval(timer);
   }, [authState, loadDashboard]);
+
+  useEffect(() => {
+    if (authState === "authenticated" && !mediaStatsRequestedRef.current) {
+      mediaStatsRequestedRef.current = true;
+      void loadMediaStats();
+    }
+  }, [authState, loadMediaStats]);
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -320,13 +449,39 @@ export default function OpsConsole() {
     }
   }
 
+  async function createBackup(kind: BackupKind) {
+    setPendingDialog(null);
+    setBusy(`backup-${kind}`);
+    setMessage("");
+    try {
+      const result = await jsonRequest<{ task: BackupTask }>("/api/ops/backups", {
+        method: "POST",
+        body: JSON.stringify({ kind }),
+      });
+      setMessage(kind === "database" ? "正在生成数据库备份…" : "正在建立完整快照并压缩附件…");
+      const task = await waitForBackupTask(result.task.id);
+      if (task.mediaStats) setMediaStats(task.mediaStats);
+      setMessage("备份已生成，浏览器即将开始下载；服务器临时文件会随下载删除。");
+      window.location.assign(
+        `/api/ops/backups/download?id=${encodeURIComponent(task.id)}`,
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "备份生成失败");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function confirmPendingDialog() {
     if (!pendingDialog) return;
     if (pendingDialog.kind === "dispatch") {
       void dispatch(pendingDialog.action);
       return;
     }
-
+    if (pendingDialog.kind === "backup") {
+      void createBackup(pendingDialog.backup);
+      return;
+    }
     void cancelRun(pendingDialog.action, pendingDialog.run);
   }
 
@@ -344,7 +499,7 @@ export default function OpsConsole() {
             <span>Countdown</span>
             <span>发布控制台</span>
           </h1>
-          <p className={styles.subtitle}>登录后才可构建、部署和下载安装包。</p>
+          <p className={styles.subtitle}>登录后才可构建、部署、下载备份和安装包。</p>
           <div className={styles.secureHint}><span />受保护的内部页面</div>
           <form onSubmit={login} className={styles.form}>
             <label>
@@ -390,7 +545,13 @@ export default function OpsConsole() {
             <strong>Countdown API</strong>
             <small>{dashboard?.health.ok ? "服务运行正常" : `服务异常${dashboard?.health.status ? `（${dashboard.health.status}）` : ""}`}</small>
           </div>
-            <button className={styles.ghostButton} onClick={loadDashboard}><span aria-hidden="true">↻</span> 刷新</button>
+            <button
+              className={styles.ghostButton}
+              onClick={() => {
+                void loadDashboard();
+                void loadMediaStats();
+              }}
+            ><span aria-hidden="true">↻</span> 刷新</button>
         </section>
 
         <div className={styles.grid}>
@@ -426,6 +587,79 @@ export default function OpsConsole() {
             />
           </section>
         </div>
+
+        <section className={`${styles.card} ${styles.backupCard}`}>
+          <div className={styles.cardHeader}>
+            <div><span className={styles.cardIcon}>DATA</span><h2>即时备份</h2></div>
+            <span className={styles.ephemeralBadge}>临时生成 · 下载即删</span>
+          </div>
+          <p>备份不会在服务器长期保留。数据库适合经常下载，完整包同时包含图片和语音。</p>
+
+          <div className={styles.backupActions}>
+            <article className={styles.backupAction}>
+              <div>
+                <strong>数据库备份</strong>
+                <small>全部业务表，压缩 SQL 格式，生成速度较快。</small>
+              </div>
+              <button
+                type="button"
+                disabled={Boolean(busy)}
+                onClick={() => setPendingDialog({ kind: "backup", backup: "database" })}
+              >
+                {busy === "backup-database" ? "生成中…" : "生成并下载"}
+              </button>
+            </article>
+            <article className={styles.backupAction}>
+              <div>
+                <strong>完整备份包</strong>
+                <small>数据库 + 聊天图片 + 时间线图片 + 语音，适合灾难恢复。</small>
+              </div>
+              <button
+                type="button"
+                disabled={Boolean(busy)}
+                onClick={() => setPendingDialog({ kind: "backup", backup: "complete" })}
+              >
+                {busy === "backup-complete" ? "压缩中…" : "生成完整包"}
+              </button>
+            </article>
+          </div>
+
+          <div className={styles.mediaPanel}>
+            <div className={styles.mediaPanelHeader}>
+              <div>
+                <span>附件容量</span>
+                <strong>{mediaStats ? formatBytes(mediaStats.totalBytes) : "等待统计"}</strong>
+              </div>
+              <button type="button" onClick={() => void loadMediaStats()} disabled={statsBusy}>
+                {statsBusy ? "统计中…" : "重新统计"}
+              </button>
+            </div>
+            {mediaStatsError ? (
+              <p className={styles.mediaError}>{mediaStatsError}</p>
+            ) : mediaStats ? (
+              <>
+                <div className={styles.capacityTrack}>
+                  <span style={{ width: `${Math.min(100, (mediaStats.totalBytes / MEDIA_BUDGET_BYTES) * 100)}%` }} />
+                </div>
+                <div className={styles.capacityMeta}>
+                  <span>已使用 {((mediaStats.totalBytes / MEDIA_BUDGET_BYTES) * 100).toFixed(1)}%</span>
+                  <span>预留上限 5 GB</span>
+                </div>
+                <div className={styles.mediaMetrics}>
+                  <div><small>图片</small><strong>{formatBytes(mediaStats.categories.chatImages.bytes + mediaStats.categories.timelineImages.bytes)}</strong></div>
+                  <div><small>语音</small><strong>{formatBytes(mediaStats.categories.voice.bytes)}</strong></div>
+                  <div><small>历史日均</small><strong>{formatBytes(mediaStats.averageBytesPerDay)}/天</strong></div>
+                  <div><small>近 7 天日均</small><strong>{formatBytes(mediaStats.recent7DayAverageBytes)}/天</strong></div>
+                </div>
+                <p className={styles.forecast}>
+                  {mediaForecast(mediaStats)}
+                </p>
+              </>
+            ) : (
+              <p className={styles.mediaPending}>正在读取服务器附件卷，不会下载或修改文件。</p>
+            )}
+          </div>
+        </section>
 
         <section className={styles.card}>
           <div className={styles.cardHeader}>

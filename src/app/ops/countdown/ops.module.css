@@ -172,7 +172,7 @@
 .form input:hover { border-color: #354762; }
 .form input:focus { border-color: #718cff; background: #0a1321; box-shadow: 0 0 0 4px rgba(102, 128, 255, 0.13); }
 
-.form button, .cardHeader button, .dialogConfirm {
+.form button, .cardHeader button, .backupAction button, .dialogConfirm {
   height: 46px;
   padding: 0 19px;
   border: 0;
@@ -185,9 +185,9 @@
   transition: transform 160ms ease, filter 160ms ease, box-shadow 160ms ease;
 }
 
-.form button:hover, .cardHeader button:hover, .dialogConfirm:hover { transform: translateY(-1px); filter: brightness(1.08); box-shadow: 0 14px 30px rgba(66, 92, 210, 0.28); }
-.form button:active, .cardHeader button:active, .dialogConfirm:active { transform: translateY(0); }
-.form button:disabled, .cardHeader button:disabled, .ghostButton:disabled, .cancelRunButton:disabled { cursor: wait; opacity: 0.55; transform: none; }
+.form button:hover, .cardHeader button:hover, .backupAction button:hover, .dialogConfirm:hover { transform: translateY(-1px); filter: brightness(1.08); box-shadow: 0 14px 30px rgba(66, 92, 210, 0.28); }
+.form button:active, .cardHeader button:active, .backupAction button:active, .dialogConfirm:active { transform: translateY(0); }
+.form button:disabled, .cardHeader button:disabled, .backupAction button:disabled, .ghostButton:disabled, .cancelRunButton:disabled, .mediaPanelHeader button:disabled { cursor: wait; opacity: 0.55; transform: none; }
 
 .error { margin: -3px 0 0; color: #ff95a4; font-size: 13px; }
 .console { width: min(100%, 1120px); margin: 0 auto; }
@@ -270,6 +270,35 @@
 
 .card > p { margin: 16px 0 0; font-size: 13px; }
 .runList, .releaseList { display: grid; gap: 8px; margin-top: 19px; }
+
+.backupCard { margin-bottom: 20px; }
+.ephemeralBadge { color: #78dabb; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; }
+.backupActions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+.backupAction { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border: 1px solid rgba(132, 151, 188, 0.13); border-radius: 14px; background: rgba(6, 12, 22, 0.46); }
+.backupAction > div { min-width: 0; }
+.backupAction strong, .backupAction small { display: block; }
+.backupAction strong { color: #e6ebf4; font-size: 13px; }
+.backupAction small { margin-top: 5px; color: #77869c; font-size: 10px; line-height: 1.5; }
+.backupAction button { flex: 0 0 auto; min-height: 38px; padding: 0 14px; border: 0; border-radius: 10px; color: white; font-size: 11px; font-weight: 800; cursor: pointer; background: linear-gradient(135deg, #6e88fa, #4c67de); }
+
+.mediaPanel { margin-top: 14px; padding: 17px; border: 1px solid rgba(84, 220, 177, 0.13); border-radius: 15px; background: linear-gradient(145deg, rgba(14, 31, 38, 0.72), rgba(8, 18, 28, 0.72)); }
+.mediaPanelHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.mediaPanelHeader span, .mediaPanelHeader strong { display: block; }
+.mediaPanelHeader span { color: #8292a8; font-size: 10px; font-weight: 750; }
+.mediaPanelHeader strong { margin-top: 4px; color: #e9fbf5; font-size: 22px; letter-spacing: -0.035em; }
+.mediaPanelHeader button { min-height: 34px; padding: 0 11px; color: #9fe6d0; border: 1px solid rgba(84, 220, 177, 0.2); border-radius: 9px; cursor: pointer; background: rgba(64, 187, 150, 0.08); font-size: 10px; font-weight: 800; }
+.capacityTrack { height: 7px; margin-top: 17px; overflow: hidden; border-radius: 99px; background: rgba(255, 255, 255, 0.07); }
+.capacityTrack > span { height: 100%; display: block; min-width: 2px; border-radius: inherit; background: linear-gradient(90deg, #54dcb1, #72a2ff); box-shadow: 0 0 14px rgba(84, 220, 177, 0.28); }
+.capacityMeta { display: flex; justify-content: space-between; margin-top: 7px; color: #67778e; font-size: 9px; }
+.mediaMetrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
+.mediaMetrics > div { padding: 11px 12px; border-radius: 11px; background: rgba(4, 11, 18, 0.42); }
+.mediaMetrics small, .mediaMetrics strong { display: block; }
+.mediaMetrics small { color: #718198; font-size: 9px; }
+.mediaMetrics strong { margin-top: 5px; overflow: hidden; color: #cfd9e8; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.forecast, .mediaPending, .mediaError { margin: 13px 0 0; font-size: 11px; line-height: 1.55; }
+.forecast { color: #91a2b9; }
+.mediaPending { color: #75869c; }
+.mediaError { color: #ff95a4; }
 
 .runItem {
   gap: 11px;
@@ -368,6 +397,8 @@
   .page { padding: 25px 14px 48px; }
   .loginCard { margin-top: 5vh; padding: 29px 23px; border-radius: 23px; }
   .grid { grid-template-columns: 1fr; }
+  .backupActions { grid-template-columns: 1fr; }
+  .mediaMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .header { align-items: flex-start; gap: 16px; }
   .headerTitle { align-items: flex-start; }
   .headerActions { flex-direction: column; align-items: flex-end; }
@@ -383,6 +414,8 @@
   .card { padding: 19px 17px; }
   .cardHeader { flex-direction: column; }
   .cardHeader button { width: 100%; }
+  .backupAction { align-items: stretch; flex-direction: column; }
+  .backupAction button { width: 100%; }
   .runItem { align-items: stretch; flex-direction: column; }
   .runLink { width: 100%; }
   .runLog { display: none; }
@@ -394,5 +427,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .loader, .dialogBackdrop, .dialog { animation: none; }
-  .form button, .cardHeader button, .runItem, .cancelRunButton { transition: none; }
+  .form button, .cardHeader button, .backupAction button, .runItem, .cancelRunButton { transition: none; }
 }

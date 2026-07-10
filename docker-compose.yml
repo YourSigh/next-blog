@@ -24,6 +24,7 @@ services:
       OPS_COUNTDOWN_HEALTH_URL: ${OPS_COUNTDOWN_HEALTH_URL:-http://countdown-api:4000/health}
       OPS_RELEASES_DIR: /app/releases
       OPS_DEPLOY_QUEUE_DIR: /app/deploy-queue
+      OPS_BACKUP_QUEUE_DIR: /app/backup-queue
       DEPLOY_WEBHOOK_SECRET: ${DEPLOY_WEBHOOK_SECRET:?DEPLOY_WEBHOOK_SECRET is required}
       OPS_LOGIN_MAX_FAILURES: ${OPS_LOGIN_MAX_FAILURES:-5}
       OPS_LOGIN_WINDOW_MINUTES: ${OPS_LOGIN_WINDOW_MINUTES:-15}
@@ -32,6 +33,7 @@ services:
     volumes:
       - ${COUNTDOWN_RELEASES_DIR:-/docker/countdown/releases}:/app/releases
       - ${COUNTDOWN_DEPLOY_QUEUE_DIR:-/docker/countdown/deploy-queue}:/app/deploy-queue
+      - ${COUNTDOWN_BACKUP_QUEUE_DIR:-/docker/countdown/backup-queue}:/app/backup-queue
     restart: unless-stopped
     networks:
       - blog-network
