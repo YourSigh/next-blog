@@ -1,5 +1,22 @@
 # next-blog
 
+## 附件中心
+
+访问 `/attachments` 可以上传、下载并预览常见图片格式。页面和接口复用
+`APK_DOWNLOAD_ACCESS_KEY`，页面验证成功后会将密钥保存在浏览器本地存储中。
+
+接口上传示例（字段名支持 `file` 或 `files`）：
+
+```bash
+curl -X POST https://yoursigh.top/api/attachments \
+  -H "Authorization: Bearer $APK_DOWNLOAD_ACCESS_KEY" \
+  -F "file=@./example.pdf"
+```
+
+也可以使用 `X-Access-Key` 请求头。附件默认保存在 `/app/attachments`，通过
+`ATTACHMENTS_DIR`、`ATTACHMENT_MAX_SIZE_MB` 和
+`ATTACHMENT_MAX_REQUEST_SIZE_MB` 调整目录、单文件及单次请求大小限制。
+
 ## Countdown 发布控制台
 
 控制台地址为 `/ops/countdown`，不会出现在博客菜单中。它负责登录、触发 GitHub Actions、

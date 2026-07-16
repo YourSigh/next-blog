@@ -9,6 +9,7 @@ const navItems = [
   { href: '/markdown-editor', label: 'Markdown 编辑器' },
   { href: '/json-diff', label: 'JSON 对比' },
   { href: '/image-compress', label: '图片压缩' },
+  { href: '/attachments', label: '附件中心' },
   { href: '/ip', label: '本机 IP' },
   { href: '/array-copy', label: '数组复制' },
 ] as const;
@@ -41,4 +42,3 @@ export default function TopNav() {
     </header>
   );
 }
-

@@ -45,6 +45,16 @@ export function getReleasesDirectory(): string {
   return process.env.OPS_RELEASES_DIR?.trim() || "/app/releases";
 }
 
+export function getAttachmentsConfig() {
+  return {
+    directory: process.env.ATTACHMENTS_DIR?.trim() || "/app/attachments",
+    maxFileSizeBytes:
+      positiveInteger("ATTACHMENT_MAX_SIZE_MB", 20) * 1024 * 1024,
+    maxRequestSizeBytes:
+      positiveInteger("ATTACHMENT_MAX_REQUEST_SIZE_MB", 100) * 1024 * 1024,
+  };
+}
+
 export function getDeployWebhookConfig() {
   const secret = required("DEPLOY_WEBHOOK_SECRET");
   if (secret.length < 32) {

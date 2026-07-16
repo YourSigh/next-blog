@@ -1,0 +1,81 @@
+.page {
+  --ink: #17211d;
+  --muted: #68756f;
+  min-height: calc(100svh - var(--app-header-h));
+  padding: 46px 20px 70px;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(95, 190, 150, 0.2), transparent 30rem),
+    radial-gradient(circle at 95% 12%, rgba(240, 183, 90, 0.18), transparent 26rem),
+    #f5f7f3;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+.shell { width: min(100%, 1050px); margin: 0 auto; }
+.header { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+.header h1, .unlockCard h1 { margin: 3px 0 8px; font-size: clamp(34px, 6vw, 54px); line-height: 1; letter-spacing: -0.055em; }
+.kicker { margin: 0; color: #398263; font-size: 10px; font-weight: 850; letter-spacing: 0.2em; }
+.muted { margin: 0; color: var(--muted); line-height: 1.65; }
+.lockButton { padding: 10px 14px; color: #5d6863; border: 1px solid #d5ddd8; border-radius: 11px; cursor: pointer; background: rgba(255,255,255,.65); }
+.lockButton:hover { color: #1b4b38; border-color: #aebdb5; }
+.uploadCard, .fileSection, .unlockCard { border: 1px solid rgba(47, 78, 64, 0.12); border-radius: 24px; background: rgba(255,255,255,.78); box-shadow: 0 20px 70px rgba(42, 68, 55, 0.08); backdrop-filter: blur(15px); }
+.uploadCard { padding: 20px; }
+.dropzone { display: grid; place-items: center; min-height: 215px; padding: 28px; border: 1.5px dashed #aabbb1; border-radius: 18px; cursor: pointer; text-align: center; background: rgba(241, 247, 243, .72); transition: .18s ease; }
+.dropzone:hover, .dragging { border-color: #3f9a73; background: #edf8f1; transform: translateY(-1px); }
+.dropzone strong { margin: 14px 0 7px; font-size: 18px; }
+.dropzone span { color: var(--muted); font-size: 13px; }
+.uploadIcon { width: 52px; height: 52px; display: grid; place-items: center; color: white; border-radius: 16px; background: linear-gradient(145deg, #4eae81, #287553); box-shadow: 0 12px 24px rgba(45, 132, 91, .22); font-size: 28px; font-weight: 300; }
+.selection { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-top: 15px; padding: 15px 17px; border-radius: 14px; background: #f0f5f1; }
+.selection > div { min-width: 0; }
+.selection strong { font-size: 13px; }
+.selection p { overflow: hidden; margin: 5px 0 0; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.selection button, .unlockForm button { flex: 0 0 auto; min-height: 43px; padding: 0 19px; color: white; border: 0; border-radius: 11px; cursor: pointer; background: #267451; font-weight: 750; }
+.selection button:disabled, .unlockForm button:disabled { cursor: wait; opacity: .55; }
+.error, .notice { margin: 13px 3px 0; font-size: 13px; }
+.error { color: #bc374e; }
+.notice { color: #23704e; }
+.fileSection { margin-top: 20px; padding: 24px; }
+.sectionTitle { display: flex; align-items: end; justify-content: space-between; margin-bottom: 19px; }
+.sectionTitle h2 { margin: 3px 0 0; font-size: 24px; letter-spacing: -.035em; }
+.sectionTitle > span { color: var(--muted); font-size: 12px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.fileCard { min-width: 0; display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; align-items: center; gap: 13px; padding: 12px; border: 1px solid #e0e7e2; border-radius: 15px; background: rgba(250,252,250,.82); transition: border-color .16s ease, transform .16s ease; }
+.fileCard:hover { border-color: #bacbc1; transform: translateY(-1px); }
+.thumbnail, .fileIcon { width: 62px; height: 58px; overflow: hidden; border: 0; border-radius: 10px; background: #e7eee9; }
+.thumbnail { padding: 0; cursor: zoom-in; }
+.thumbnail img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.fileIcon { display: grid; place-items: center; color: #547063; font-size: 10px; font-weight: 900; letter-spacing: .05em; }
+.fileInfo { min-width: 0; }
+.fileInfo h3 { overflow: hidden; margin: 0; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.fileInfo p { margin: 6px 0 0; color: #7b8882; font-size: 10px; }
+.actions { display: flex; flex-direction: column; gap: 5px; }
+.actions a, .actions button { padding: 5px 8px; color: #347456; border: 0; border-radius: 7px; cursor: pointer; text-align: center; text-decoration: none; background: #eaf3ed; font-size: 10px; }
+.actions a:hover, .actions button:hover { color: white; background: #347456; }
+.empty { padding: 70px 20px; color: var(--muted); text-align: center; }
+.loading { min-height: 55vh; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--muted); }
+.loading span { width: 22px; height: 22px; border: 2px solid #c7d5cd; border-top-color: #398263; border-radius: 50%; animation: spin .75s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.unlockCard { width: min(100%, 465px); margin: 8vh auto 0; padding: 38px; }
+.logo { width: 53px; height: 53px; display: grid; place-items: center; margin-bottom: 25px; color: white; border-radius: 17px; background: linear-gradient(145deg, #52ad83, #287250); font-size: 28px; }
+.unlockCard .muted { margin-top: 16px; font-size: 14px; }
+.unlockForm { display: grid; gap: 11px; margin-top: 27px; }
+.unlockForm label { color: #58655f; font-size: 12px; font-weight: 700; }
+.unlockForm input { min-height: 50px; padding: 0 14px; color: var(--ink); border: 1px solid #cbd7d0; border-radius: 12px; outline: none; background: #fbfcfb; font-size: 16px; }
+.unlockForm input:focus { border-color: #459470; box-shadow: 0 0 0 4px rgba(55, 143, 102, .12); }
+.unlockForm button { width: 100%; min-height: 50px; margin-top: 2px; }
+.modal { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(11, 19, 15, .78); backdrop-filter: blur(9px); }
+.modalContent { width: min(94vw, 1100px); max-height: 91vh; overflow: hidden; border: 1px solid rgba(255,255,255,.16); border-radius: 18px; background: #101713; box-shadow: 0 30px 100px rgba(0,0,0,.45); }
+.modalHeader { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 12px 15px; color: #edf5f0; }
+.modalHeader strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.modalHeader button { width: 34px; height: 34px; flex: 0 0 auto; color: white; border: 0; border-radius: 9px; cursor: pointer; background: rgba(255,255,255,.1); font-size: 23px; }
+.modalContent > img { width: 100%; max-height: calc(91vh - 59px); display: block; object-fit: contain; background: #080c0a; }
+@media (max-width: 760px) {
+  .page { padding: 28px 13px 50px; }
+  .header { align-items: start; flex-direction: column; }
+  .lockButton { align-self: flex-end; }
+  .grid { grid-template-columns: 1fr; }
+  .fileSection, .uploadCard { padding: 14px; border-radius: 19px; }
+  .selection { align-items: stretch; flex-direction: column; }
+  .selection button { min-height: 48px; }
+  .unlockCard { margin-top: 4vh; padding: 29px 22px; }
+}
+@media (prefers-reduced-motion: reduce) { .loading span { animation: none; } }
