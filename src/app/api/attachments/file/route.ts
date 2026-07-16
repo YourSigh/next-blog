@@ -6,6 +6,7 @@ import { hasAttachmentAccess } from "@/lib/attachments/auth";
 import {
   getAttachmentContentType,
   getAttachmentPath,
+  isSafeGroupName,
   isPreviewableImage,
 } from "@/lib/attachments/storage";
 
@@ -24,7 +25,11 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const filename = url.searchParams.get("file") || "";
-  const filePath = getAttachmentPath(filename);
+  const group = url.searchParams.get("group") || "";
+  if (group && !isSafeGroupName(group)) {
+    return NextResponse.json({ error: "分组名称无效" }, { status: 400 });
+  }
+  const filePath = getAttachmentPath(filename, group);
   if (!filePath) return NextResponse.json({ error: "文件名无效" }, { status: 400 });
 
   try {

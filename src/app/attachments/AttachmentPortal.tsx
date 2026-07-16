@@ -13,6 +13,11 @@ type Attachment = {
   isImage: boolean;
 };
 
+type AttachmentGroup = {
+  name: string;
+  count: number;
+};
+
 type ViewState = "loading" | "locked" | "ready";
 
 function formatSize(bytes: number): string {
@@ -31,8 +36,9 @@ function formatTime(value: string): string {
   }).format(new Date(value));
 }
 
-function fileUrl(filename: string, preview = false): string {
+function fileUrl(filename: string, group: string, preview = false): string {
   const query = new URLSearchParams({ file: filename });
+  if (group) query.set("group", group);
   if (preview) query.set("preview", "1");
   return `/api/attachments/file?${query}`;
 }
@@ -41,26 +47,35 @@ export default function AttachmentPortal() {
   const [viewState, setViewState] = useState<ViewState>("loading");
   const [accessKey, setAccessKey] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [groups, setGroups] = useState<AttachmentGroup[]>([]);
+  const [activeGroup, setActiveGroup] = useState("");
+  const [newGroupName, setNewGroupName] = useState("");
+  const [showGroupForm, setShowGroupForm] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [preview, setPreview] = useState<Attachment | null>(null);
+  const [deletingFile, setDeletingFile] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const loadAttachments = useCallback(async (key?: string) => {
-    const response = await fetch("/api/attachments", {
+  const loadAttachments = useCallback(async (group = "", key?: string) => {
+    const query = group ? `?${new URLSearchParams({ group })}` : "";
+    const response = await fetch(`/api/attachments${query}`, {
       cache: "no-store",
       headers: key ? { Authorization: `Bearer ${key}` } : undefined,
     });
     if (response.status === 401) throw new Error("UNAUTHORIZED");
     const body = (await response.json().catch(() => ({}))) as {
       attachments?: Attachment[];
+      groups?: AttachmentGroup[];
       error?: string;
     };
     if (!response.ok) throw new Error(body.error || "附件列表加载失败");
     setAttachments(body.attachments ?? []);
+    setGroups(body.groups ?? []);
+    setActiveGroup(group);
     setViewState("ready");
   }, []);
 
@@ -73,12 +88,12 @@ export default function AttachmentPortal() {
     const body = (await response.json().catch(() => ({}))) as { error?: string };
     if (!response.ok) throw new Error(body.error || "验证失败");
     if (remember) localStorage.setItem(STORAGE_KEY, key);
-    await loadAttachments(key);
+    await loadAttachments("", key);
   }, [loadAttachments]);
 
   useEffect(() => {
     const savedKey = localStorage.getItem(STORAGE_KEY);
-    loadAttachments().catch(async (reason) => {
+    loadAttachments("").catch(async (reason) => {
       if (reason instanceof Error && reason.message === "UNAUTHORIZED" && savedKey) {
         try {
           await verifyKey(savedKey, false);
@@ -128,6 +143,7 @@ export default function AttachmentPortal() {
     setNotice("");
     const formData = new FormData();
     selectedFiles.forEach((file) => formData.append("files", file));
+    if (activeGroup) formData.append("group", activeGroup);
     const key = localStorage.getItem(STORAGE_KEY);
 
     try {
@@ -149,7 +165,7 @@ export default function AttachmentPortal() {
       setNotice(`已成功上传 ${body.attachments?.length ?? selectedFiles.length} 个文件`);
       setSelectedFiles([]);
       if (inputRef.current) inputRef.current.value = "";
-      await loadAttachments(key || undefined);
+      await loadAttachments(activeGroup, key || undefined);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "上传失败");
     } finally {
@@ -157,10 +173,80 @@ export default function AttachmentPortal() {
     }
   }
 
+  async function switchGroup(group: string) {
+    setError("");
+    setNotice("");
+    setPreview(null);
+    try {
+      await loadAttachments(group, localStorage.getItem(STORAGE_KEY) || undefined);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "分组加载失败");
+    }
+  }
+
+  async function createGroup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = newGroupName.trim();
+    if (!name) return;
+    setSubmitting(true);
+    setError("");
+    const key = localStorage.getItem(STORAGE_KEY);
+    try {
+      const response = await fetch("/api/attachments/groups", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(key ? { Authorization: `Bearer ${key}` } : {}),
+        },
+        body: JSON.stringify({ name }),
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        group?: AttachmentGroup;
+        error?: string;
+      };
+      if (!response.ok) throw new Error(body.error || "分组创建失败");
+      setNewGroupName("");
+      setShowGroupForm(false);
+      setNotice(`分组“${body.group?.name || name}”已创建`);
+      await loadAttachments(body.group?.name || name, key || undefined);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "分组创建失败");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function removeAttachment(attachment: Attachment) {
+    if (!window.confirm(`确定删除“${attachment.filename}”吗？删除后无法恢复。`)) return;
+    setDeletingFile(attachment.filename);
+    setError("");
+    setNotice("");
+    const query = new URLSearchParams({ file: attachment.filename });
+    if (activeGroup) query.set("group", activeGroup);
+    const key = localStorage.getItem(STORAGE_KEY);
+    try {
+      const response = await fetch(`/api/attachments?${query}`, {
+        method: "DELETE",
+        headers: key ? { Authorization: `Bearer ${key}` } : undefined,
+      });
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(body.error || "删除失败");
+      if (preview?.filename === attachment.filename) setPreview(null);
+      setNotice(`已删除 ${attachment.filename}`);
+      await loadAttachments(activeGroup, key || undefined);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "删除失败");
+    } finally {
+      setDeletingFile("");
+    }
+  }
+
   async function lockPage() {
     localStorage.removeItem(STORAGE_KEY);
     await fetch("/api/apk/auth", { method: "DELETE" }).catch(() => undefined);
     setAttachments([]);
+    setGroups([]);
+    setActiveGroup("");
     setSelectedFiles([]);
     setPreview(null);
     setViewState("locked");
@@ -210,6 +296,37 @@ export default function AttachmentPortal() {
           <button className={styles.lockButton} type="button" onClick={lockPage}>清除密钥并退出</button>
         </header>
 
+        <section className={styles.groupBar}>
+          <div className={styles.groupTabs} aria-label="附件分组">
+            {groups.map((group) => (
+              <button
+                key={group.name || "__ungrouped__"}
+                type="button"
+                className={activeGroup === group.name ? styles.activeGroup : ""}
+                onClick={() => switchGroup(group.name)}
+              >
+                <span>{group.name || "未分组"}</span><i>{group.count}</i>
+              </button>
+            ))}
+          </div>
+          {!showGroupForm ? (
+            <button className={styles.addGroupButton} type="button" onClick={() => setShowGroupForm(true)}>＋ 新建分组</button>
+          ) : (
+            <form className={styles.groupForm} onSubmit={createGroup}>
+              <input
+                value={newGroupName}
+                onChange={(event) => setNewGroupName(event.target.value)}
+                placeholder="分组名称"
+                maxLength={80}
+                autoFocus
+                required
+              />
+              <button type="submit" disabled={submitting}>创建</button>
+              <button type="button" onClick={() => { setShowGroupForm(false); setNewGroupName(""); }}>取消</button>
+            </form>
+          )}
+        </section>
+
         <section className={styles.uploadCard}>
           <div
             className={`${styles.dropzone} ${dragging ? styles.dragging : ""}`}
@@ -222,7 +339,7 @@ export default function AttachmentPortal() {
             onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") inputRef.current?.click(); }}
           >
             <div className={styles.uploadIcon} aria-hidden="true">＋</div>
-            <strong>拖放附件到这里</strong>
+            <strong>上传到“{activeGroup || "未分组"}”</strong>
             <span>或点击选择文件，单个文件最大 20 MB</span>
             <input
               ref={inputRef}
@@ -250,7 +367,7 @@ export default function AttachmentPortal() {
 
         <section className={styles.fileSection}>
           <div className={styles.sectionTitle}>
-            <div><p className={styles.kicker}>FILES</p><h2>全部附件</h2></div>
+            <div><p className={styles.kicker}>FILES</p><h2>{activeGroup || "未分组"}</h2></div>
             <span>{attachments.length} 个文件</span>
           </div>
 
@@ -263,7 +380,7 @@ export default function AttachmentPortal() {
                   {attachment.isImage ? (
                     <button className={styles.thumbnail} type="button" onClick={() => setPreview(attachment)} aria-label={`预览 ${attachment.filename}`}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={fileUrl(attachment.filename, true)} alt="" loading="lazy" />
+                      <img src={fileUrl(attachment.filename, activeGroup, true)} alt="" loading="lazy" />
                     </button>
                   ) : (
                     <div className={styles.fileIcon} aria-hidden="true">{attachment.filename.split(".").pop()?.slice(0, 4).toUpperCase() || "FILE"}</div>
@@ -274,7 +391,15 @@ export default function AttachmentPortal() {
                   </div>
                   <div className={styles.actions}>
                     {attachment.isImage && <button type="button" onClick={() => setPreview(attachment)}>预览</button>}
-                    <a href={fileUrl(attachment.filename)} download={attachment.filename}>下载</a>
+                    <a href={fileUrl(attachment.filename, activeGroup)} download={attachment.filename}>下载</a>
+                    <button
+                      className={styles.deleteButton}
+                      type="button"
+                      onClick={() => removeAttachment(attachment)}
+                      disabled={deletingFile === attachment.filename}
+                    >
+                      {deletingFile === attachment.filename ? "删除中" : "删除"}
+                    </button>
                   </div>
                 </article>
               ))}
@@ -288,7 +413,7 @@ export default function AttachmentPortal() {
           <div className={styles.modalContent} onClick={(event) => event.stopPropagation()}>
             <div className={styles.modalHeader}><strong>{preview.filename}</strong><button type="button" onClick={() => setPreview(null)} aria-label="关闭预览">×</button></div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={fileUrl(preview.filename, true)} alt={preview.filename} />
+            <img src={fileUrl(preview.filename, activeGroup, true)} alt={preview.filename} />
           </div>
         </div>
       )}

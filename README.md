@@ -2,7 +2,7 @@
 
 ## 附件中心
 
-访问 `/attachments` 可以上传、下载并预览常见图片格式。页面和接口复用
+访问 `/attachments` 可以新建分组、上传、删除、下载并预览常见图片格式。页面和接口复用
 `APK_DOWNLOAD_ACCESS_KEY`，页面验证成功后会将密钥保存在浏览器本地存储中。
 
 接口上传示例（字段名支持 `file` 或 `files`）：
@@ -12,6 +12,10 @@ curl -X POST https://yoursigh.top/api/attachments \
   -H "Authorization: Bearer $APK_DOWNLOAD_ACCESS_KEY" \
   -F "file=@./example.pdf"
 ```
+
+上传到指定分组时增加 `-F "group=图片"`。删除接口为
+`DELETE /api/attachments?file=example.pdf&group=图片`，新建分组接口为
+`POST /api/attachments/groups`，JSON 请求体格式为 `{ "name": "图片" }`。
 
 也可以使用 `X-Access-Key` 请求头。附件默认保存在 `/app/attachments`，通过
 `ATTACHMENTS_DIR`、`ATTACHMENT_MAX_SIZE_MB` 和
