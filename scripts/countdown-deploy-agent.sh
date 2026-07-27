@@ -6,6 +6,7 @@ DEPLOY_PATH="${DEPLOY_PATH:-/docker/countdown}"
 SERVICE_NAME="${SERVICE_NAME:-countdown-api}"
 HEALTH_ATTEMPTS="${HEALTH_ATTEMPTS:-30}"
 ROLLBACK_HEALTH_ATTEMPTS="${ROLLBACK_HEALTH_ATTEMPTS:-15}"
+DOCKER_PRUNE_UNTIL="${DOCKER_PRUNE_UNTIL:-24h}"
 
 mkdir -p \
   "$QUEUE_DIR/pending" \
@@ -54,6 +55,12 @@ show_diagnostics() {
   docker logs --tail 160 "$SERVICE_NAME" 2>&1 || true
 }
 
+prune_old_docker_images() {
+  log "清理超过 ${DOCKER_PRUNE_UNTIL} 且未被容器使用的 Docker 镜像"
+  docker image prune -af --filter "until=${DOCKER_PRUNE_UNTIL}" || \
+    log "警告：Docker 镜像清理失败，继续部署流程"
+}
+
 json_field() {
   local file="$1"
   local field="$2"
@@ -98,6 +105,8 @@ deploy_task() {
     cd "$DEPLOY_PATH"
     old_image="$(docker inspect --format '{{.Config.Image}}' "$SERVICE_NAME" 2>/dev/null || true)"
 
+    prune_old_docker_images
+
     log "拉取并重建 ${SERVICE_NAME}：$new_image"
     export COUNTDOWN_API_IMAGE="$new_image"
     docker compose pull "$SERVICE_NAME"
@@ -107,6 +116,7 @@ deploy_task() {
     if check_health "$HEALTH_ATTEMPTS"; then
       log "新版本健康检查通过"
       mv "$processing_file" "$done_file"
+      prune_old_docker_images
       return 0
     fi
 

@@ -6,6 +6,7 @@ RELEASES_DIR="${RELEASES_DIR:-/docker/countdown/releases}"
 DEPLOY_PATH="${DEPLOY_PATH:-/docker/countdown}"
 NEXT_CONTAINER_UID="${NEXT_CONTAINER_UID:-1001}"
 NEXT_CONTAINER_GID="${NEXT_CONTAINER_GID:-1001}"
+DOCKER_PRUNE_UNTIL="${DOCKER_PRUNE_UNTIL:-24h}"
 
 if [[ "${EUID}" -ne 0 ]]; then
   echo "请用 root 执行：sudo $0" >&2
@@ -37,6 +38,7 @@ After=docker.service
 Type=oneshot
 Environment=QUEUE_DIR=${QUEUE_DIR}
 Environment=DEPLOY_PATH=${DEPLOY_PATH}
+Environment=DOCKER_PRUNE_UNTIL=${DOCKER_PRUNE_UNTIL}
 ExecStart=/usr/local/bin/countdown-deploy-agent
 SERVICE
 

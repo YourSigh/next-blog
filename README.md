@@ -128,7 +128,16 @@ sudo RELEASES_DIR=/docker/countdown/releases \
 ```
 
 Agent 会安装一个 systemd timer，每 20 秒检查一次部署任务。它只在服务器本机执行
-`docker compose pull/up`，不需要 GitHub 连接 SSH。
+`docker compose pull/up`，不需要 GitHub 连接 SSH。每次处理 API 部署任务时，Agent 会在
+拉取新镜像前和新版本健康检查通过后执行：
+
+```bash
+docker image prune -af --filter "until=24h"
+```
+
+这会清理超过 24 小时且未被任何容器引用的 Docker 镜像，避免服务器本地
+`/var/lib/docker` 被历史镜像撑满。当前运行中的镜像不会被删除；如果需要调整保留窗口，
+安装时设置 `DOCKER_PRUNE_UNTIL`，例如 `DOCKER_PRUNE_UNTIL=48h`。
 
 ### 5. 安装即时备份 Agent
 
