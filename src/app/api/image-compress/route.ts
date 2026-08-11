@@ -15,11 +15,11 @@ type CompressParams = {
  * 图片压缩路由（/api/image-compress）
  *
  * 说明：
- * - 不使用任何三方库，所以真正的像素级压缩建议放在前端通过 canvas 完成，
+ * - 真正的像素级压缩在前端完成（静态图：canvas→JPEG；GIF：解析帧后减色/缩放再编码），
  *   本路由负责接收「已压缩」后的图片二进制和参数，做统一的校验 / 记录 / 转发。
  * - 前端可以：
  *   1. 先使用 <input type="file"> 选择图片
- *   2. 使用 canvas 根据 width/height/quality/targetSizeKB 做压缩
+ *   2. 按格式压缩（JPEG / 动画 GIF）
  *   3. 再把压缩后的 Blob 通过 multipart/form-data POST 到本接口
  */
 export async function POST(request: Request) {
@@ -86,11 +86,9 @@ export async function POST(request: Request) {
   const arrayBuffer = await file.arrayBuffer();
   const originalSize = arrayBuffer.byteLength;
 
-  // 这里不做真正的「二进制重编码压缩」，因为不使用三方库在 Node 侧实现
-  // JPEG/PNG/WebP 编解码非常复杂。
-  //
+  // 这里不做真正的「二进制重编码压缩」。
   // 推荐方案：
-  // - 前端使用 canvas 把图片按 width/height/quality/targetSizeKB 做压缩
+  // - 前端按格式压缩（静态图 canvas→JPEG；GIF 解析帧后减色/缩放再编码）
   // - 再把压缩后的 Blob 通过本接口上传
   //
   // 本接口返回：

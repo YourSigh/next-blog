@@ -1,17 +1,17 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-
-type CompressParams = {
-  width?: number;
-  height?: number;
-  quality?: number;
-  targetSizeKB?: number;
-};
+import { compressGifInBrowser } from '@/lib/image-compress/gif';
+import {
+  calcTargetDimensions,
+  isGifFile,
+  type CompressParams,
+} from '@/lib/image-compress/types';
 
 type PreviewInfo = {
   url: string;
   sizeKB: number;
+  mimeType: string;
 };
 
 async function fileToImage(file: File): Promise<HTMLImageElement> {
@@ -23,25 +23,17 @@ async function fileToImage(file: File): Promise<HTMLImageElement> {
   });
 }
 
-async function compressImageInBrowser(file: File, options: CompressParams): Promise<Blob> {
+async function compressImageInBrowser(
+  file: File,
+  options: CompressParams,
+): Promise<Blob> {
   const img = await fileToImage(file);
 
-  const originW = img.width;
-  const originH = img.height;
-
-  let targetW = originW;
-  let targetH = originH;
-
-  if (options.width && options.height) {
-    targetW = options.width;
-    targetH = options.height;
-  } else if (options.width) {
-    targetW = options.width;
-    targetH = Math.round((originH / originW) * targetW);
-  } else if (options.height) {
-    targetH = options.height;
-    targetW = Math.round((originW / originH) * targetH);
-  }
+  const { width: targetW, height: targetH } = calcTargetDimensions(
+    img.width,
+    img.height,
+    options,
+  );
 
   const canvas = document.createElement('canvas');
   canvas.width = targetW;
@@ -67,9 +59,69 @@ async function compressImageInBrowser(file: File, options: CompressParams): Prom
   return blob;
 }
 
+async function compressToTargetSize(
+  file: File,
+  params: CompressParams,
+  initialBlob: Blob,
+): Promise<Blob> {
+  if (!params.targetSizeKB || Number.isNaN(params.targetSizeKB)) {
+    return initialBlob;
+  }
+
+  let low = 0.1;
+  let high = params.quality ?? 0.9;
+  let compressedBlob = initialBlob;
+  let bestBlob = initialBlob;
+  const targetBytes = params.targetSizeKB * 1024;
+
+  for (let i = 0; i < 5; i++) {
+    const currentSize = compressedBlob.size;
+    if (Math.abs(currentSize - targetBytes) < targetBytes * 0.1) {
+      bestBlob = compressedBlob;
+      break;
+    }
+
+    const mid = (low + high) / 2;
+    compressedBlob = await compressImageInBrowser(file, {
+      ...params,
+      quality: mid,
+    });
+    bestBlob = compressedBlob;
+
+    if (compressedBlob.size > targetBytes) {
+      high = mid;
+    } else {
+      low = mid;
+    }
+  }
+
+  return bestBlob;
+}
+
 function formatSizeKB(size: number | undefined): string {
   if (size == null || Number.isNaN(size)) return '-';
   return `${size.toFixed(2)} KB`;
+}
+
+function mimeToExt(mimeType: string): string {
+  if (mimeType === 'image/gif') return '.gif';
+  if (mimeType === 'image/png') return '.png';
+  if (mimeType === 'image/webp') return '.webp';
+  return '.jpg';
+}
+
+function fileBaseName(originalName: string | undefined): string {
+  const defaultName = originalName || 'image';
+  const dotIndex = defaultName.lastIndexOf('.');
+  return dotIndex > 0 ? defaultName.slice(0, dotIndex) : defaultName;
+}
+
+function buildDownloadName(originalName: string | undefined, mimeType: string): string {
+  return `${fileBaseName(originalName)}-compressed${mimeToExt(mimeType)}`;
+}
+
+function buildUploadFilename(originalName: string | undefined, mimeType: string): string {
+  return `${fileBaseName(originalName)}${mimeToExt(mimeType)}`;
 }
 
 export default function ImageCompressPage() {
@@ -85,6 +137,8 @@ export default function ImageCompressPage() {
   const [isCompressing, setIsCompressing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [meta, setMeta] = useState<any | null>(null);
+
+  const isGif = useMemo(() => (file ? isGifFile(file) : false), [file]);
 
   useEffect(() => {
     return () => {
@@ -108,7 +162,7 @@ export default function ImageCompressPage() {
     const sizeKB = f.size / 1024;
     const url = URL.createObjectURL(f);
     setFile(f);
-    setOriginPreview({ url, sizeKB });
+    setOriginPreview({ url, sizeKB, mimeType: f.type || 'application/octet-stream' });
   }
 
   async function handleCompress() {
@@ -129,81 +183,19 @@ export default function ImageCompressPage() {
       if (!Number.isNaN(q) && q >= 0 && q <= 1) params.quality = q;
       if (!Number.isNaN(t) && t > 0) params.targetSizeKB = t;
 
-      let compressedBlob = await compressImageInBrowser(file, params);
+      const gif = isGifFile(file);
+      let compressedBlob: Blob;
 
-      if (params.targetSizeKB && !Number.isNaN(params.targetSizeKB)) {
-        let low = 0.1;
-        let high = params.quality ?? 0.9;
-        let bestBlob = compressedBlob;
-        const targetBytes = params.targetSizeKB * 1024;
-
-        for (let i = 0; i < 5; i++) {
-          const currentSize = compressedBlob.size;
-          if (Math.abs(currentSize - targetBytes) < targetBytes * 0.1) {
-            bestBlob = compressedBlob;
-            break;
-          }
-
-          const mid = (low + high) / 2;
-
-          const tmpBlob: Blob = await new Promise((resolve, reject) => {
-            const imgPromise = fileToImage(file);
-            imgPromise
-              .then((img) => {
-                const canvas = document.createElement('canvas');
-                const originW = img.width;
-                const originH = img.height;
-
-                let targetW = originW;
-                let targetH = originH;
-
-                if (params.width && params.height) {
-                  targetW = params.width;
-                  targetH = params.height;
-                } else if (params.width) {
-                  targetW = params.width;
-                  targetH = Math.round((originH / originW) * targetW);
-                } else if (params.height) {
-                  targetH = params.height;
-                  targetW = Math.round((originW / originH) * targetH);
-                }
-
-                canvas.width = targetW;
-                canvas.height = targetH;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) {
-                  reject(new Error('Canvas 2D 不可用'));
-                  return;
-                }
-                ctx.drawImage(img, 0, 0, targetW, targetH);
-
-                canvas.toBlob(
-                  (b) => {
-                    if (b) resolve(b);
-                    else reject(new Error('canvas.toBlob 失败'));
-                  },
-                  'image/jpeg',
-                  mid,
-                );
-              })
-              .catch(reject);
-          });
-
-          compressedBlob = tmpBlob;
-          bestBlob = tmpBlob;
-
-          if (compressedBlob.size > targetBytes) {
-            high = mid;
-          } else {
-            low = mid;
-          }
-        }
-
-        compressedBlob = bestBlob;
+      if (gif) {
+        compressedBlob = await compressGifInBrowser(file, params);
+      } else {
+        compressedBlob = await compressImageInBrowser(file, params);
+        compressedBlob = await compressToTargetSize(file, params, compressedBlob);
       }
 
       const formData = new FormData();
-      const filename = file.name || 'image.jpg';
+      const mimeType = compressedBlob.type || (gif ? 'image/gif' : 'image/jpeg');
+      const filename = buildUploadFilename(file.name, mimeType);
       formData.append('file', compressedBlob, filename);
       if (params.width) formData.append('width', String(params.width));
       if (params.height) formData.append('height', String(params.height));
@@ -221,11 +213,12 @@ export default function ImageCompressPage() {
       }
 
       const resultBlob = await res.blob();
+      const resultMime = resultBlob.type || mimeType;
       const url = URL.createObjectURL(resultBlob);
       const sizeKB = resultBlob.size / 1024;
 
       if (compressedPreview?.url) URL.revokeObjectURL(compressedPreview.url);
-      setCompressedPreview({ url, sizeKB });
+      setCompressedPreview({ url, sizeKB, mimeType: resultMime });
 
       const metaHeader = res.headers.get('X-Image-Meta');
       if (metaHeader) {
@@ -247,15 +240,7 @@ export default function ImageCompressPage() {
 
     const link = document.createElement('a');
     link.href = compressedPreview.url;
-
-    const defaultName = file?.name || 'image.jpg';
-    const dotIndex = defaultName.lastIndexOf('.');
-    const downloadName =
-      dotIndex > 0
-        ? `${defaultName.slice(0, dotIndex)}-compressed${defaultName.slice(dotIndex)}`
-        : `${defaultName}-compressed`;
-
-    link.download = downloadName;
+    link.download = buildDownloadName(file?.name, compressedPreview.mimeType);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -292,7 +277,7 @@ export default function ImageCompressPage() {
           选择图片
           <input
             type="file"
-            accept="image/*"
+            accept="image/*,.gif"
             onChange={handleFileChange}
             style={{ display: 'none' }}
           />
@@ -319,7 +304,9 @@ export default function ImageCompressPage() {
         >
           <h2 style={{ fontSize: 18, margin: 0 }}>压缩参数</h2>
           <p style={{ opacity: 0.7, fontSize: 13, margin: 0 }}>
-            宽高可只填一个自动等比，质量 0–1，目标大小为尽量逼近值。
+            {isGif
+              ? '已识别为 GIF：保留动画，宽高可只填一个自动等比；质量映射为调色板颜色数（越高越清晰、体积越大），目标大小会优先减色，必要时再缩小尺寸。'
+              : '宽高可只填一个自动等比，质量 0–1（输出 JPEG），目标大小为尽量逼近值。GIF 会走专用压缩并保留动画。'}
           </p>
 
           <div
@@ -365,7 +352,9 @@ export default function ImageCompressPage() {
               />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={{ fontSize: 13 }}>质量（0–1）</label>
+              <label style={{ fontSize: 13 }}>
+                {isGif ? '质量（颜色数）' : '质量（0–1）'}
+              </label>
               <input
                 type="number"
                 min={0}
@@ -424,7 +413,7 @@ export default function ImageCompressPage() {
               gap: 6,
             }}
           >
-            {isCompressing ? '压缩中…' : '开始压缩'}
+            {isCompressing ? (isGif ? 'GIF 压缩中…' : '压缩中…') : '开始压缩'}
           </button>
 
           {error && (
@@ -487,7 +476,7 @@ export default function ImageCompressPage() {
                 fontSize: 13,
               }}
             >
-              <span>原图预览</span>
+              <span>原图预览{isGif ? '（GIF）' : ''}</span>
               <span style={{ opacity: 0.7 }}>
                 大小：{originPreview ? formatSizeKB(originPreview.sizeKB) : '-'}
               </span>
@@ -593,4 +582,3 @@ export default function ImageCompressPage() {
     </div>
   );
 }
-
