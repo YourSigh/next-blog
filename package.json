@@ -11,12 +11,14 @@
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
     "@prisma/client": "^6.19.3",
+    "@types/three": "^0.185.4",
     "gifenc": "^1.0.3",
     "gifuct-js": "^2.1.2",
     "next": "^16.2.10",
     "prisma": "^6.19.3",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

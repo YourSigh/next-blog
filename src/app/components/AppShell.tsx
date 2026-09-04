@@ -10,7 +10,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const isStandalonePage =
     pathname.startsWith("/ops/") ||
     pathname === "/ops" ||
-    pathname === "/countdown/download";
+    pathname === "/countdown/download" ||
+    pathname === "/test";
 
   return (
     <>

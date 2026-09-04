@@ -1,21 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+  --background: #050505;
+  --foreground: #ededed;
   --app-header-h: 56px;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
@@ -34,28 +28,54 @@ body {
 }
 
 .stage {
-  /* 始终按减去 header 的高度来算，避免开关灯导致布局变化 */
-  min-height: calc(100vh - var(--app-header-h));
-  display: grid;
-  place-items: center;
-  padding: 6vh 6vw;
+  height: 340svh;
   position: relative;
-  overflow: hidden;
-  background: #000;
+  overflow: clip;
+  background: #010302;
   color: #fff;
+  transition:
+    background 0.8s ease,
+    color 0.8s ease;
 }
 
 /* 不再在 lights-on 时改变 stage 高度，避免上下跳动 */
 
 .content {
-  max-width: 1024px;
-  line-height: 1.7;
-  z-index: 1;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  width: min(620px, 84vw);
+  height: 100svh;
+  margin-left: clamp(26px, 7vw, 120px);
+  display: grid;
+  align-content: center;
+  line-height: 1.65;
+  transition:
+    color 0.7s ease,
+    transform 0.7s ease;
+}
+
+.home-particle-field {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100svh;
+  z-index: 0;
+  pointer-events: none;
+  background: transparent;
 }
 
 .stage h1 {
-  font-size: clamp(34px, 6vw, 72px);
-  margin: 0.2em 0 0.4em;
+  margin: 0;
+  font-size: clamp(52px, 6.3vw, 104px);
+  font-weight: 400;
+  line-height: 0.91;
+  letter-spacing: -0.065em;
+  text-shadow: 0 4px 35px rgba(0, 0, 0, 0.45);
+}
+.stage h1 em {
+  color: #f1f1f1;
+  font-style: normal;
 }
 
 .stage p {
@@ -67,17 +87,106 @@ body {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   opacity: 0.85;
 }
+.hero-kicker {
+  margin: 0 0 24px !important;
+  color: #bcbcbc;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+}
+.hero-lead {
+  margin: 28px 0 8px !important;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: clamp(14px, 1.15vw, 18px);
+}
+.forest-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 75% 24%, #404040 0 2%, transparent 22%),
+    radial-gradient(circle at 66% 45%, #202020, transparent 42%),
+    linear-gradient(135deg, #060606 0%, #111 52%, #050505 100%);
+  transition: opacity 0.9s ease;
+}
+.forest-glow:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, #fff 0 1px, transparent 1.6px);
+  background-size: 47px 47px;
+  opacity: 0.38;
+  mask-image: linear-gradient(90deg, transparent 25%, #000);
+}
+.forest-glow i {
+  position: absolute;
+  width: 38vw;
+  height: 38vw;
+  border-radius: 50% 0 50% 50%;
+  background: linear-gradient(
+    145deg,
+    rgba(0, 0, 0, 0.09),
+    rgba(255, 255, 255, 0.02)
+  );
+  filter: blur(2px);
+  transform: rotate(25deg);
+}
+.forest-glow i:nth-child(1) {
+  right: -10vw;
+  top: -18vw;
+}
+.forest-glow i:nth-child(2) {
+  right: 12vw;
+  bottom: -28vw;
+  transform: rotate(205deg);
+}
+.forest-glow i:nth-child(3) {
+  left: -25vw;
+  bottom: -30vw;
+  transform: rotate(135deg);
+}
+.lights-on .forest-glow {
+  opacity: 1;
+}
+.lights-on .stage {
+  background: #0b0b0b;
+  color: #f4f4f4;
+}
+.lights-on .content {
+  transform: translateY(-1.5vh);
+}
+.lights-on .stage h1 {
+  text-shadow: none;
+}
+.lights-on .stage h1 em {
+  color: #fff;
+}
+.lights-on .hero-kicker {
+  color: #aaa;
+}
+.lights-on .hero-lead,
+.lights-on .mono {
+  color: #bbb;
+  opacity: 0.8;
+}
 
 .flashlight-page {
   margin: 0 !important;
   background: #000 !important;
   color: #fff !important;
   min-height: 100vh !important;
-  cursor: url('/light_cursor.png'), auto;
+  cursor: default;
 }
 
 .flashlight-page * {
-  cursor: url('/light_cursor.png'), auto;
+  cursor: inherit;
+}
+.flashlight-page a,
+.flashlight-page button,
+.flashlight-page [role="button"] {
+  cursor: pointer;
 }
 
 .lights-on {
@@ -89,15 +198,15 @@ body {
 }
 
 .pulling {
-  cursor: url('/hand_cursor.png'), pointer !important;
+  cursor: url("/hand_cursor.png"), pointer !important;
 }
 
 .pulling * {
-  cursor: url('/hand_cursor.png'), pointer !important;
+  cursor: url("/hand_cursor.png"), pointer !important;
 }
 
 .pull-knob {
-  cursor: url('/hand_cursor.png'), pointer !important;
+  cursor: url("/hand_cursor.png"), pointer !important;
 }
 
 .flashlight {
@@ -113,7 +222,7 @@ body {
     rgba(0, 0, 0, 0.35) calc(var(--r) + calc(var(--feather) * 0.33)),
     rgba(0, 0, 0, 0.66) calc(var(--r) + calc(var(--feather) * 0.66)),
     rgba(0, 0, 0, 0.9) calc(var(--r) + var(--feather)),
-    rgba(0, 0, 0, 0.97) var(--outer)
+    rgba(0, 2, 1, 0.94) var(--outer)
   );
   transition: opacity 0.25s ease;
 }
@@ -137,6 +246,19 @@ body {
   opacity: 0.9;
   user-select: none;
   z-index: 20;
+}
+.hint span {
+  display: block;
+  margin-bottom: 5px;
+  color: #ddd;
+  font-size: 9px;
+  letter-spacing: 0.26em;
+}
+.lights-on .hint {
+  color: #555;
+}
+.lights-on .hint span {
+  color: #222;
 }
 
 .pull-area {
@@ -196,9 +318,12 @@ body {
   display: grid;
   place-items: center;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
-  cursor: url('/hand_cursor.png'), pointer !important;
+  cursor: url("/hand_cursor.png"), pointer !important;
   transform-origin: top center;
-  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease;
   font-size: 12px;
   font-weight: 700;
 }
@@ -212,7 +337,10 @@ body {
   border-radius: 50%;
   background: #333;
   box-shadow: 0 0 0 2px #222 inset;
-  transition: background 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
 }
 
 .lights-on .bulb {
@@ -273,11 +401,18 @@ body {
   z-index: 50;
   background: color-mix(in oklab, var(--background) 88%, transparent);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid color-mix(in oklab, var(--foreground) 14%, transparent);
-  opacity: 0;
-  pointer-events: none;
+  border-bottom: 1px solid
+    color-mix(in oklab, var(--foreground) 14%, transparent);
+  opacity: 1;
+  pointer-events: auto;
   /* 不需要菜单动画，避免视觉/布局抖动 */
   transition: none;
+}
+
+/* 普通页面始终显示导航；只有首页关灯探索时隐藏。 */
+.flashlight-page:not(.lights-on) .appHeader {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .appHeaderInner {
@@ -331,6 +466,17 @@ body {
 .lights-on .appHeader {
   opacity: 1;
   pointer-events: auto;
+  color: #eee;
+  background: rgba(8, 8, 8, 0.76);
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
+}
+.lights-on .appHeader .appLink {
+  color: #ddd;
+}
+.lights-on .appHeader .appLinkActive {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 /* appMain 始终有 padding-top，因此无需在 lights-on 时再单独设置 */
@@ -345,7 +491,8 @@ body {
   font-weight: 700;
   margin: 0.67em 0;
   padding-bottom: 0.3em;
-  border-bottom: 2px solid color-mix(in oklab, var(--foreground) 20%, transparent);
+  border-bottom: 2px solid
+    color-mix(in oklab, var(--foreground) 20%, transparent);
 }
 
 .markdown-preview h2 {
@@ -353,7 +500,8 @@ body {
   font-weight: 700;
   margin: 0.75em 0;
   padding-bottom: 0.3em;
-  border-bottom: 1px solid color-mix(in oklab, var(--foreground) 15%, transparent);
+  border-bottom: 1px solid
+    color-mix(in oklab, var(--foreground) 15%, transparent);
 }
 
 .markdown-preview h3 {
@@ -403,7 +551,9 @@ body {
   color: var(--foreground);
   cursor: pointer;
   opacity: 0.85;
-  transition: opacity 0.15s ease, background 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease;
 }
 
 .markdown-preview .md-code-copy-btn:hover {
@@ -533,7 +683,9 @@ body {
   box-shadow: 0 8px 24px color-mix(in oklab, var(--foreground) 12%, transparent);
   opacity: 0;
   transform: translateY(-8px);
-  transition: opacity 0.22s ease, transform 0.22s ease;
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
 }
 
 .appToast--visible {
@@ -553,33 +705,42 @@ body {
   border-color: color-mix(in oklab, #60a5fa 40%, transparent);
 }
 
-/* ===== 鼠标光标拖尾特效 ===== */
-.cursor-trail-container {
+/* ===== 繁星鼠标轨迹 ===== */
+.star-cursor-trail {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   pointer-events: none;
   z-index: 9999;
+  filter: grayscale(1);
 }
 
-.cursor-trail-particle {
-  position: absolute;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  /* 默认：黄色（手电筒模式 - 黑屏状态） */
-  background: radial-gradient(circle, rgba(255, 220, 100, 0.8) 0%, rgba(255, 220, 100, 0.4) 50%, transparent 100%);
-  box-shadow: 0 0 12px rgba(255, 220, 100, 0.6);
-  pointer-events: none;
-  transform: translate(-50%, -50%);
-  will-change: transform, opacity;
-  transition: background 0.3s ease, box-shadow 0.3s ease;
+@media (max-width: 700px) {
+  .content {
+    margin-left: 24px;
+    width: 86vw;
+  }
+  .stage h1 {
+    font-size: clamp(46px, 14vw, 68px);
+  }
+  .hero-lead {
+    margin-top: 20px !important;
+  }
+  .hint {
+    width: 85%;
+    text-align: center;
+  }
+  .forest-glow i {
+    width: 70vw;
+    height: 70vw;
+  }
 }
-
-/* 正常状态（lights-on）：绿色光 */
-.lights-on .cursor-trail-particle {
-  background: radial-gradient(circle, rgba(144, 255, 144, 0.8) 0%, rgba(144, 255, 144, 0.4) 50%, transparent 100%);
-  box-shadow: 0 0 12px rgba(144, 255, 144, 0.6);
+@media (prefers-reduced-motion: reduce) {
+  .forest-glow,
+  .stage,
+  .content {
+    transition: none;
+  }
+  .star-cursor-trail {
+    display: none;
+  }
 }
