@@ -78,6 +78,12 @@ Argon2 哈希含 `$`，写入 Compose `.env` 时要使用单引号包住整个�
 - next-blog 服务器 `.env`
 - countdown 仓库 GitHub Actions Secret `DEPLOY_WEBHOOK_SECRET`
 
+`NEXT_SERVER_REQUEST_TIMEOUT_MS` 默认为 `2100000`（35 分钟）。这是 Next
+standalone 容器接收完整 HTTP 请求体的时限，专门覆盖 GitHub Actions 的大 APK
+流式上传；它应始终大于 countdown 工作流中 APK 上传 `curl` 的 `--max-time`，否则
+较慢的上传会被服务端提前以 HTTP 408 终止。Nginx webhook 的 35 分钟
+`client_body_timeout` 和代理超时则是无数据传输时的保护，不是请求总时限。
+
 Next 容器内用户 UID/GID 是 `1001`。如果手动创建目录，需要允许它写入：
 
 ```bash

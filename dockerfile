@@ -36,6 +36,7 @@ RUN addgroup --system --gid 1001 nodejs \
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/scripts/node-http-timeouts.cjs ./node-http-timeouts.cjs
 
 # 运行时环境
 ENV NODE_ENV=production
@@ -49,5 +50,6 @@ USER nextjs
 # 暴露端口
 EXPOSE 3000
 
-# 启动应用（Next standalone 的入口为 ./server.js）
-CMD ["node", "server.js"]
+# 启动应用（Next standalone 的入口为 ./server.js）。预加载脚本会在 Next
+# 创建 HTTP Server 前设置请求体超时，避免大 APK 上传命中 Node 的 5 分钟默认值。
+CMD ["node", "--require", "./node-http-timeouts.cjs", "server.js"]
