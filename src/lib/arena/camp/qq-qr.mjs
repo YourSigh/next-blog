@@ -7,6 +7,14 @@ export function authorizationUrl(state){const url=new URL('https://openmobile.qq
 export function parseCallback(value,expectedState){let url;try{url=new URL(value);}catch{return null;}if(url.protocol!=='auth:'||url.hostname!=='tauth.qq.com')return null;const p=new URLSearchParams(url.hash?url.hash.slice(1):url.search);if(p.has('state')&&p.get('state')!==expectedState)return null;const accessToken=p.get('access_token'),openId=p.get('openid');if(!/^[a-zA-Z0-9_-]{16,2048}$/.test(accessToken||'')||!/^[a-fA-F0-9]{16,128}$/.test(openId||''))return null;return {accessToken,openId,expires:p.get('expires_in')||'',pf:p.get('pf')||'',pfKey:p.get('pfkey')||'',payToken:p.get('pay_token')||''};}
 export function qrToken(value){let n=0;for(let i=0;i<value.length;i++)n+=(n<<5)+value.charCodeAt(i);return n&0x7fffffff;}
 export function parseQQCallback(script){if(typeof script!=='string'||script.length>100000||!/^\s*ptuiCB\s*\(/.test(script))return null;const args=[...script.matchAll(/(['"])((?:\\.|(?!\1)[^\\])*)\1/g)].map(m=>decode(m[2]));return args.length>=5?args:null;}
+// The official mobile proxy executes _Callback(JSON) from m_get_redirect_url.
+// Parse its data only; never execute upstream JavaScript.
+export function parseQQRedirect(script){
+ if(typeof script!=='string'||script.length>100000)return null;
+ const match=script.match(/^\s*_Callback\s*\(\s*(\{[\s\S]*\})\s*\)\s*;?\s*$/);
+ if(!match)return null;
+ try{const data=JSON.parse(match[1]);return data&&(data.ret===0||data.ret==='0')&&typeof data.url==='string'&&data.url.length<=16384?data.url:null;}catch{return null;}
+}
 /** Official mobile QR protocol from QQ's public login_10.js; no browser binary. */
 export class QQQrLogin{
  constructor({proxy,onAuthorization,network,ttlMs=180000,pollDelayMs=3000}={}){this.proxy=proxy;this.onAuthorization=onAuthorization;this.network=network;this.ttlMs=ttlMs;this.pollDelayMs=pollDelayMs;this.generation=0;this.status='idle';this.message='尚未发起 QQ 授权';this.jar=[];}
@@ -22,8 +30,23 @@ export class QQQrLogin{
   this.qrImage=`data:image/${png?'png':'jpeg'};base64,${bytes.toString('base64')}`;this.status='waiting';this.message='请用手机 QQ 扫码，在官方页面核对王者营地并确认授权。';this.expiresAt=Date.now()+this.ttlMs;this.expiry=setTimeout(()=>{if(generation===this.generation&&['waiting','scanned'].includes(this.status)){this.status='expired';this.message='QQ 二维码已过期，请重新获取';this.generation++;this._clear();}},this.ttlMs);this.expiry.unref?.();this._schedule(generation);return{id:this.id,qrImage:this.qrImage,expiresAt:this.expiresAt,message:this.message};
  }catch{if(generation===this.generation){this.status='error';this.message='QQ 官方二维码暂不可用，请稍后重试。';this._clear();}throw failure();}}
  _schedule(generation){this.timer=setTimeout(()=>{void this._poll(generation);},this.pollDelayMs);this.timer.unref?.();}
- async _finish(value,generation){let current=value;for(let step=0;step<8;step++){const qq=parseCallback(current,this.state);if(qq){clearTimeout(this.expiry);this.status='scanned';this.message='QQ 已确认，正在验证营地登录';try{await this.onAuthorization(qq);if(generation===this.generation){this.status='authenticated';this.message='QQ 营地会话已验证';this._clear();}}finally{for(const key of Object.keys(qq))qq[key]='';}return;}
+ async _proxyCallback(url){
+  // This is a local implementation of the exact official proxy page's step,
+  // not a request to an arbitrary redirect target. Fragments can contain a
+  // second #; QQ's getParam treats ?, & and # as field separators.
+  const params=new URLSearchParams(url.search.slice(1)+'&'+url.hash.slice(1).replace(/#/g,'&'));
+  const key=params.get('redirect_uri_key');
+  if(params.getAll('appid').length!==1||params.get('appid')!=='1105200115'||params.getAll('redirect_uri_key').length!==1||!key||key.length>8192)throw failure();
+  const target=new URL('https://openmobile.qq.com/oauth2.0/m_get_redirect_url');target.searchParams.set('keystr',key);
+  const response=await this._request(target.href);const callback=parseQQRedirect(await response.text());
+  if(!callback||!parseCallback(callback,this.state))throw failure();
+  const final=new URL(callback),fields=new URLSearchParams(final.hash?final.hash.slice(1):final.search);
+  if(fields.getAll('state').length!==1||fields.get('state')!==this.state)throw failure();
+  return callback;
+ }
+ async _finish(value,generation){this.stage='callback';let current=value;for(let step=0;step<8;step++){if(generation!==this.generation)return;const qq=parseCallback(current,this.state);if(qq){clearTimeout(this.expiry);this.status='scanned';this.message='QQ 已确认，正在验证营地登录';try{this.stage='camp';await this.onAuthorization(qq);if(generation===this.generation){this.status='authenticated';this.message='QQ 营地会话已验证';this._clear();}}finally{for(const key of Object.keys(qq))qq[key]='';}return;}
+  const candidate=new URL(current);if(candidate.origin==='https://imgcache.qq.com'&&candidate.pathname==='/open/connect/widget/mobile/login/proxy.htm'&&!candidate.username&&!candidate.password){current=await this._proxyCallback(candidate);continue;}
   if(generation!==this.generation)return;const response=await this._request(current);const location=response.headers.get('location');if(location){current=new URL(location,current).href;continue;}const body=await response.text();if(body.length>2000000)throw failure();const callback=body.match(/auth:(?:\\x[0-9a-f]{2}|[^\s"'<>])+/i)?.[0];if(callback){current=decode(callback);continue;}const redirect=body.match(/(?:location(?:\.href)?\s*=|location\.replace\()\s*(['"])([^'"]+)\1/);if(redirect){current=new URL(decode(redirect[2]),current).href;continue;}throw failure();}throw failure();}
- async _poll(generation){if(generation!==this.generation||!['waiting','scanned'].includes(this.status))return;try{const p=this.params,qs=this.jar.find(c=>c.name==='qrsig')?.value;if(!qs)throw failure();const url=new URL('https://ssl.ptlogin2.qq.com/ptqrlogin');url.search=new URLSearchParams({u1:p.get('s_url'),from_ui:'1',type:'1',ptlang:'2052',ptqrtoken:String(qrToken(qs)),daid:p.get('daid'),aid:p.get('appid'),pt_3rd_aid:'1105200115',pt_openlogin_data:p.toString()+'&pt_flex=1',device:'2',ptopt:'1',pt_uistyle:p.get('style')||'35',r:String(Math.random())}).toString();const response=await this._request(url.href);const args=parseQQCallback(await response.text());if(generation!==this.generation)return;if(!args)throw failure();if(args[0]==='0'){await this._finish(args[2],generation);return;}if(args[0]==='65'){this.status='expired';this.message='QQ 二维码已过期';this._clear();return;}if(args[0]==='67'){this.status='scanned';this.message='QQ 已扫码，请在手机上确认。';}else if(args[0]!=='66')throw failure();this._schedule(generation);}catch{if(generation===this.generation){this.status='error';this.message='QQ 授权未完成，请重新获取二维码。';this._clear();}}}
+ async _poll(generation){if(generation!==this.generation||!['waiting','scanned'].includes(this.status))return;this.stage='poll';try{const p=this.params,qs=this.jar.find(c=>c.name==='qrsig')?.value;if(!qs)throw failure();const url=new URL('https://ssl.ptlogin2.qq.com/ptqrlogin');url.search=new URLSearchParams({u1:p.get('s_url'),from_ui:'1',type:'1',ptlang:'2052',ptqrtoken:String(qrToken(qs)),daid:p.get('daid'),aid:p.get('appid'),pt_3rd_aid:'1105200115',pt_openlogin_data:p.toString()+'&pt_flex=1',device:'2',ptopt:'1',pt_uistyle:p.get('style')||'35',r:String(Math.random())}).toString();const response=await this._request(url.href);const args=parseQQCallback(await response.text());if(generation!==this.generation)return;if(!args)throw failure();if(args[0]==='0'){await this._finish(args[2],generation);return;}if(args[0]==='65'){this.status='expired';this.message='QQ 二维码已过期';this._clear();return;}if(args[0]==='67'){this.status='scanned';this.message='QQ 已扫码，请在手机上确认。';}else if(args[0]!=='66')throw failure();this._schedule(generation);}catch(error){if(generation===this.generation){this.status='error';this.message=this.stage==='camp'?'QQ 已确认，但营地登录验证失败。'+(error?.name==='CampTransportError'?error.message:'请稍后重新扫码。'):this.stage==='callback'?'QQ 已确认，但授权回调未完成，请重新获取二维码。':'QQ 扫码状态查询失败，请重新获取二维码。';this._clear();}}}
  poll(){return{status:this.status==='idle'?'expired':this.status,message:this.message};}
 }
