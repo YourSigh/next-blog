@@ -54,7 +54,13 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./public:/var/www/blog-fe:ro
       - ${COUNTDOWN_RELEASES_DIR:-/docker/countdown/releases}:/var/www/countdown-releases:ro
+
+      # SSL 证书
       - /www/yoursigh.top/ssl:/www/yoursigh.top/ssl:ro
+
+      # Let's Encrypt / acme.sh HTTP-01 验证目录
+      - /www/yoursigh.top/acme:/www/yoursigh.top/acme:ro
+
     depends_on:
       - next-blog
     restart: unless-stopped

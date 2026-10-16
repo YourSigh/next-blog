@@ -66,6 +66,7 @@ export function isSafeGroupName(group: string): boolean {
     group === path.basename(group) &&
     group !== "." &&
     group !== ".." &&
+    group !== ".arena" && // Reserved for the public arena's isolated game-statistics store.
     !/[\u0000-\u001f\u007f/\\]/.test(group)
   );
 }

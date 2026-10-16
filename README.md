@@ -182,3 +182,8 @@ docker compose up -d
 ```
 
 生产 Compose 不再向宿主机公开 Next 的 3000 端口；Nginx 通过 `blog-network` 访问它。
+
+
+## ARENA
+
+Public authorized player profiles, five-lane ratings, and fair 5v5 team selection are available at `/arena`. See [the Arena guide](docs/arena.md) for persistence, login verification scope, and the algorithm. Existing Nginx and Docker deployment configuration is reused.

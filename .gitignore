@@ -40,3 +40,6 @@ next-env.d.ts
 # cursor
 .cursorrules
 /src/generated/prisma
+
+# Arena runtime game snapshots
+/data/

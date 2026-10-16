@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // 启用 standalone 输出模式，用于 Docker 部署
   output: 'standalone',
+  // Runtime arena archives belong to the mounted data directory, never the image.
+  outputFileTracingExcludes: { '/*': ['./data/**/*'] },
 
   // Argon2 使用平台原生绑定，由 Node.js 在服务端直接加载。
   serverExternalPackages: ['@node-rs/argon2'],

@@ -1,0 +1,1 @@
+export function fetchExtended(options:{auth:unknown;request:unknown;catalog?:unknown[];onProgress?:(value:{progress?:{message?:string}})=>void;signal?:AbortSignal;delayMs?:number}):Promise<{errorCode?:string;status:string;heroStats:{items:unknown[]};seasons:{items:unknown[]};[key:string]:unknown}>;
