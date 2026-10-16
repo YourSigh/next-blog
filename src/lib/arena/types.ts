@@ -14,8 +14,9 @@ export type Player = {
   preferences: PlayerPreferences; coverage: { heroRecords: number; seasonRecords: number; matchRecords: number; catalogMatched: boolean; limitations: string[] };
   sample?: boolean;
 };
-export type LaneRating = { score: number; confidence: number; games: number; winRate: number | null; preference: number; reasons: string[] };
-export type PlayerRating = { playerId: string; overall: number; confidence: number; lanes: Record<Lane, LaneRating>; reasons: string[]; version: string };
+export type RatingComponent = { key:string; label:string; value:number|null; weight:number; bonus?:number };
+export type LaneRating = { evidence:'supported'|'limited'|'unknown'; specialty?:string; components:RatingComponent[]; topHeroes:Array<{id:string|null;name:string;icon:string|null;games:number|null;power:number|null;winRate:number|null}>; manual:number; score: number; confidence: number; games: number; winRate: number | null; preference: number; reasons: string[] };
+export type PlayerRating = { basis:{rankScore:number;peakScore:number|null;peakPoints:number|null;recentGames:number}; playerId: string; overall: number; confidence: number; lanes: Record<Lane, LaneRating>; reasons: string[]; version: string };
 export type LaneLock = { playerId: string; lane?: Lane; team?: 'A' | 'B' };
 export type BalanceOptions = { selectedIds: string[]; locks: LaneLock[]; seed?: string; variety?: number };
 export type TeamSeat = { playerId: string; lane: Lane; score: number; confidence: number; preferred: boolean };
