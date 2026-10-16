@@ -5,6 +5,16 @@ const TICKET='https://ssl.kohsocialapp.qq.com:10001/a/getwxsdkticket';
 const QR='https://open.weixin.qq.com/connect/sdk/qrconnect';
 const POLL='https://long.open.weixin.qq.com/connect/l/qrconnect';
 const error=(message,code='qr_unavailable')=>Object.assign(new Error(message),{publicMessage:message,code});
+// Only fixed local messages enter the UI; never reflect upstream bodies or credentials.
+function exchangeFailure(cause){
+  const details=cause?.name==='CampTransportError'?{
+    rate_limit:'营地提示请求频繁，请稍后手动重试。',
+    transport:'营地登录网络请求未成功，请检查服务端网络后重试。',
+    auth:'营地登录校验未通过，请重新授权。',
+    upstream:'营地登录响应暂不可用，请稍后重试。',
+  }[cause.code]:null;
+  return '微信已确认，但营地登录验证失败。'+(details||'请稍后重新扫码。');
+}
 export function wechatQrUrl(ticket,{nonce=randomBytes(12).toString('hex'),timestamp=String(Math.floor(Date.now()/1000))}={}) {
   const signature=createHash('sha1').update(`appid=${WECHAT_APP_ID}&noncestr=${nonce}&sdk_ticket=${ticket}&timestamp=${timestamp}`).digest('hex');
   const url=new URL(QR);url.search=new URLSearchParams({appid:WECHAT_APP_ID,noncestr:nonce,timestamp,scope:'snsapi_userinfo',signature}).toString();return url.href;
@@ -42,7 +52,7 @@ export class WechatQrLogin {
   }
   async start(){
     const generation=++this.generation;this._release();this.controller=new AbortController();const signal=this.controller.signal;
-    this.status='starting';this.message='正在获取微信官方二维码';this.id=randomBytes(12).toString('hex');this.xLogUid=randomUUID().toUpperCase();
+    this.status='starting';this.stage='ticket';this.message='正在获取微信官方二维码';this.id=randomBytes(12).toString('hex');this.xLogUid=randomUUID().toUpperCase();
     const current=()=>generation===this.generation&&!signal.aborted;
     try{
       if(typeof this.onAuthorization!=='function')throw error('微信授权服务尚未配置。');
@@ -50,7 +60,7 @@ export class WechatQrLogin {
       if(!current())throw error('微信授权请求已取消。','cancelled');
       const ticket=ticketResult?.data?.sdkTicket;
       if(Number(ticketResult?.returnCode)!==0||typeof ticket!=='string'||!ticket||ticket.length>4096)throw error('营地未提供微信扫码票据，微信入口暂不可用。');
-      const qr=await this._json(wechatQrUrl(ticket));
+      this.stage='qr';const qr=await this._json(wechatQrUrl(ticket));
       if(!current())throw error('微信授权请求已取消。','cancelled');
       if(Number(qr?.errcode)!==0||!/^[A-Za-z0-9_-]{8,256}$/.test(qr?.uuid||'')||qr.appname&&!/王者(营地|荣耀助手)/.test(qr.appname))throw error('微信未返回王者营地的有效二维码。');
       this.uuid=qr.uuid;this.qrImage=image(qr?.qrcode?.qrcodebase64);this.expiresAt=Date.now()+this.ttlMs;
@@ -59,7 +69,7 @@ export class WechatQrLogin {
       this._schedule(generation,0);
       return{id:this.id,qrImage:this.qrImage,expiresAt:this.expiresAt,message:this.message};
     }catch{
-      if(generation===this.generation){this.status='error';this.message='微信扫码暂不可用；请稍后重试，或使用 QQ 授权。';this._release();}
+      if(generation===this.generation){this.status='error';this.message=this.stage==='ticket'?'营地微信扫码票据暂未获取，请稍后重试。':'微信官方二维码暂未生成，请稍后重试。';this._release();}
       throw error(generation===this.generation?this.message:'微信授权请求已取消。',generation===this.generation?'qr_unavailable':'cancelled');
     }
   }
@@ -69,12 +79,13 @@ export class WechatQrLogin {
     const signal=this.controller.signal;const uuid=this.uuid;
     const url=new URL(POLL);url.search=new URLSearchParams({f:'json',uuid,...(this.last?{last:String(this.last)}:{})}).toString();
     try{
+      this.stage='poll';
       const result=await this._json(url.href,{},60000);
       if(generation!==this.generation||signal.aborted)return;
       const status=Number(result?.wx_errcode);this.last=status;
       if(status===405){
         const code=result?.wx_code;if(typeof code!=='string'||!/^[A-Za-z0-9_-]{8,1024}$/.test(code))throw error('微信确认结果缺少有效 code。');
-        clearTimeout(this.expiryTimer);this.qrImage=null;this.uuid=null;this.status='scanned';this.message='微信已确认授权，正在验证营地登录';
+        clearTimeout(this.expiryTimer);this.qrImage=null;this.uuid=null;this.stage='camp';this.status='scanned';this.message='微信已确认授权，正在验证营地登录';
         const authorization={code,xLogUid:this.xLogUid};
         try{await this.onAuthorization(authorization,{signal});if(generation===this.generation&&!signal.aborted){this.status='authenticated';this.message='微信营地会话已验证';}}
         finally{authorization.code='';authorization.xLogUid='';}
@@ -84,7 +95,7 @@ export class WechatQrLogin {
       if(status===404){this.status='scanned';this.message='微信已扫码，请在手机上核对并确认授权。';}
       else if(status!==408)throw error('微信授权状态异常。');
       this._schedule(generation);
-    }catch{if(generation===this.generation&&!signal.aborted){this.status='error';this.message='微信授权未完成，请重新获取二维码。';this._release();}}
+    }catch(cause){if(generation===this.generation&&!signal.aborted){this.status='error';this.message=this.stage==='camp'?exchangeFailure(cause):'微信扫码状态查询失败，请重新获取二维码。';this._release();}}
   }
   poll(){return{status:this.status==='idle'?'expired':this.status,message:this.message};}
 }

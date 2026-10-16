@@ -6,7 +6,12 @@ from [lizupingsama/Honor-of-Kings-Match-Dashboard](https://github.com/lizupingsa
 commit `c04acbabe21c85230c5911a07c6aba55577ea634`, specifically
 `src/lib/camp/xxtea.ts`, `camp-api.ts`, and login form/signing behavior in
 `wechat-login.ts`. QQ-specific login field mapping in the new exchange also
-uses static observations of the supplied Camp APK. QQ Camp exchange and game data reads were verified for the owner account; new HTTP QR callbacks and WeChat account completion still require user scanning.
+uses static observations of the supplied Camp APK. QQ and WeChat HTTP QR completion,
+Camp exchange, data reads and saving were verified with the owner's scans on
+2026-10-16. Daily-event single-battle detail request parameters and blue/red role
+normalization also use the pinned `camp-api.ts` and `camp-client.ts`; the owner's
+latest battle returned a complete ten-role panel. A real daily-event match with
+ten registered participants has not yet been played through the new feature.
 
 Author: lizupingsama and that project's contributors. The pinned source files
 contain no additional copyright notice. The repository's actual LICENSE at

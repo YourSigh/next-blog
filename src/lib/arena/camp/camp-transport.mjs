@@ -75,12 +75,17 @@ function headersFor(auth, userKey) {
   return headers;
 }
 
-function enforceBody(path, body, userId, knownRoles, extended, knownSeasons, uniqueRoles) {
+function enforceBody(path, body, userId, knownRoles, extended, knownSeasons, uniqueRoles, knownBattles) {
   if (typeof body !== 'string' || Buffer.byteLength(body) > 16384) fail('scope', '营地请求体不在允许范围。');
   let data;
   try { data = JSON.parse(body); } catch { fail('scope', '营地请求体不是有效 JSON。'); }
   if (!plain(data)) fail('scope', '营地请求体不在允许范围。');
   const roleAllowed = value => knownRoles.has(scalar(value));
+  if(path==='/game/battledetail'){
+    const key=JSON.stringify([data.gameSeq,data.gameSvr,data.relaySvr,data.battleType]);
+    if(Object.keys(data).length!==6||data.recommendPrivacy!==0||typeof data.targetRoleId!=='string'||!roleAllowed(data.targetRoleId)||!knownBattles.has(key))fail('scope','只能读取本人最新战绩页已经返回的对局详情。');
+    return;
+  }
   if(extended&&path==='/game/profile/herolist'){
     if(Object.keys(data).length!==2||typeof data.targetRoleId!=='string'||!roleAllowed(data.targetRoleId)||data.targetUserId!==userId)fail('scope','只能读取本人角色的当前英雄列表。');
     return;
@@ -128,7 +133,7 @@ function checkCode(code, message='') {
  * It MUST honor redirect:'manual', use the supplied URL, and return a Response.
  * Basic and extended own-account reads verified on 2026-10-16; this does not create a login session.
  */
-export function createCampTransport({ network, auth, extended = false, observe }) {
+export function createCampTransport({ network, auth, extended = false, battleDetails = false, observe }) {
   if (typeof network !== 'function') fail('transport_required', '需要显式提供本地网络传输函数。');
   if (!plain(auth) || !/^\d{5,15}$/.test(scalar(auth.userId)) || typeof auth.token !== 'string' || !auth.token) {
     fail('auth', '需要完整的本人营地授权会话。');
@@ -139,12 +144,13 @@ export function createCampTransport({ network, auth, extended = false, observe }
   const knownRoles = new Set();
   const uniqueRoles = new Map();
   const knownSeasons = new Set();
+  const knownBattles = new Set();
   const request = async (url, options = {}) => {
     if (typeof url !== 'string') fail('scope', '营地地址不在允许范围。');
     const path = url.startsWith(ORIGIN) ? url.slice(ORIGIN.length) : '';
-    if (!(PATHS.has(path) || extended && EXTENDED_PATHS.has(path)) || url !== `${ORIGIN}${path}` || options.method !== 'POST') fail('scope', '仅允许指定的营地 HTTPS 只读接口。');
+    if (!(PATHS.has(path) || extended && EXTENDED_PATHS.has(path) || battleDetails && path==='/game/battledetail') || url !== `${ORIGIN}${path}` || options.method !== 'POST') fail('scope', '仅允许指定的营地 HTTPS 只读接口。');
     if (options.auth && scalar(options.auth.userId) !== session.userId) fail('scope', '会话账号与请求账号不一致。');
-    enforceBody(path, options.body, session.userId, knownRoles, extended, knownSeasons, uniqueRoles);
+    enforceBody(path, options.body, session.userId, knownRoles, extended, knownSeasons, uniqueRoles, knownBattles);
     // The official H5 production map routes serviceType=php to this origin,
     // not the newer RPC host. Only these two already-validated role reads use it.
     const php = extended && ['/play/getherolist','/play/h5getherolist'].includes(path);
@@ -199,6 +205,13 @@ export function createCampTransport({ network, auth, extended = false, observe }
             const roleId = scalar(role.roleId);knownRoles.add(roleId);
             uniqueRoles.set(roleId,new Set([role.uniqueRoleId,role.uniqueRoleID].map(scalar).filter(Boolean)));
           }
+        }
+      }
+      if(path==='/game/morebattlelist'&&battleDetails){
+        knownBattles.clear();const page=plain(data.data)?data.data:data;
+        for(const row of (page.list||page.battle_list||[]).slice(0,50)){
+          const values=[scalar(row.gameSeq),scalar(row.gameSvrId||row.gameSvr),scalar(row.relaySvrId||row.relaySvr),Number(row.battleType)];
+          if(values.slice(0,3).every(v=>v&&v.length<300)&&Number.isInteger(values[3])&&values[3]>=0)knownBattles.add(JSON.stringify(values));
         }
       }
       if(path==='/game/koh/profile'){

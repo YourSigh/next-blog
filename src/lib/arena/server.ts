@@ -10,15 +10,18 @@ import catalog from './hero-catalog.json';
 import { createPlayerStore, playerFromCamp } from './store.ts';
 import { ratePlayer } from './rating.ts';
 import type { Provider } from './types.ts';
+import { createIdentityTokens, IDENTITY_COOKIE, IDENTITY_TTL } from './identity.ts';
 
 type Login = {start:()=>Promise<{id:string;qrImage:string;expiresAt:number;message:string}>;poll:()=>{status:string;message:string};stop:()=>Promise<void>};
 type CampAuth = {userId:string;token:string;encodeRes:string;[key:string]:unknown};
-type Session = { key:string; lastUsed:number; login?:Login; flowId?:string; starting?:Promise<unknown>; lastStart:number; provider?:Provider; auth?:CampAuth; playerId?:string; sync?:Promise<void>; syncStatus:{status:string;message:string}; lastSync:number; epoch:number };
-type Runtime = {sessions:Map<string,Session>;rates:Map<string,{count:number;time:number}>;store:ReturnType<typeof createPlayerStore>;dispatcher?:ProxyAgent;proxy:string;cleanupAt:number;balanceTimes:Map<string,number>};
+type Session = { key:string; lastUsed:number; login?:Login; flowId?:string; starting?:Promise<unknown>; lastStart:number; provider?:Provider; auth?:CampAuth; playerId?:string; sync?:Promise<void>; syncStatus:{status:string;message:string}; lastSync:number; epoch:number; lastEventProbe?:number };
+type Runtime = {sessions:Map<string,Session>;rates:Map<string,{count:number;time:number}>;store:ReturnType<typeof createPlayerStore>;storeVersion?:number;dispatcher?:ProxyAgent;proxy:string;cleanupAt:number;balanceTimes:Map<string,number>;identities?:ReturnType<typeof createIdentityTokens>};
 const COOKIE='arena_browser';
 const runtimeGlobal=globalThis as typeof globalThis & { __arenaRuntime?:Runtime };
 export function arenaRuntime():Runtime {
   if(!runtimeGlobal.__arenaRuntime){const proxy=process.env.ARENA_PROXY||process.env.HTTPS_PROXY||'';runtimeGlobal.__arenaRuntime={sessions:new Map(),rates:new Map(),store:createPlayerStore(),dispatcher:proxy?new ProxyAgent(proxy):undefined,proxy,cleanupAt:0,balanceTimes:new Map()};}
+  // Keep live authorization through dev HMR, but refresh the store's schema/closures.
+  if(runtimeGlobal.__arenaRuntime.storeVersion!==2){runtimeGlobal.__arenaRuntime.store=createPlayerStore();runtimeGlobal.__arenaRuntime.storeVersion=2;}
   return runtimeGlobal.__arenaRuntime;
 }
 export class ArenaError extends Error {constructor(public status:number,message:string){super(message);}}
@@ -87,4 +90,15 @@ export async function startLogin(session:Session,provider:Provider){
   session.starting=session.login.start();
   try{const result=await session.starting as Awaited<ReturnType<Login['start']>>;session.flowId=result.id;return result;}catch{throw new ArenaError(502,provider==='qq'?'QQ 官方二维码暂未生成，请稍后重试。':'微信官方二维码暂未生成，请稍后重试。');}finally{session.starting=undefined;}
 }
-export async function arenaState(request:NextRequest){await cleanupSessions();const session=getSession(request),players=await arenaRuntime().store.list();return {authenticated:!!session?.auth,configured:true,currentPlayerId:session?.playerId||null,players,ratings:players.map(ratePlayer),providers:await providerCapabilities(),message:'已授权保存的游戏资料公开供访客查看与分队；登录凭据仅留在临时服务会话。'};}
+export function identityTokens(){return arenaRuntime().identities ||= createIdentityTokens();}
+export async function participantIdentity(request:NextRequest){
+  const s=getSession(request);const id=s?.auth&&s.playerId?s.playerId:(await identityTokens().verify(request.cookies.get(IDENTITY_COOKIE)?.value))?.playerId;
+  return id&&await arenaRuntime().store.read(id)?id:null;
+}
+export async function attachIdentity(response:NextResponse,request:NextRequest){
+  const s=getSession(request);if(!s?.auth||!s.playerId)return response;
+  const old=await identityTokens().verify(request.cookies.get(IDENTITY_COOKIE)?.value);
+  if(old?.playerId!==s.playerId||old.expiresAt-Date.now()<7*86400_000)response.cookies.set(IDENTITY_COOKIE,await identityTokens().issue(s.playerId),{httpOnly:true,sameSite:'lax',secure:request.headers.get('origin')?.startsWith('https://')===true||request.headers.get('x-forwarded-proto')==='https',maxAge:IDENTITY_TTL,path:'/api/arena'});
+  return response;
+}
+export async function arenaState(request:NextRequest){await cleanupSessions();const session=getSession(request),players=await arenaRuntime().store.list();return {authenticated:!!session?.auth,configured:true,currentPlayerId:session?.playerId||null,identityPlayerId:await participantIdentity(request),players:players.map(({roleKey,...p})=>p),ratings:players.map(ratePlayer),providers:await providerCapabilities(),message:'已授权保存的游戏资料公开供访客查看与分队；登录凭据仅留在临时服务会话。'};}

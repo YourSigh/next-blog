@@ -25,11 +25,11 @@ function randomFor(seed: string): () => number {
   };
 }
 
-type Assignment = { indices: number[]; scores: number[]; total: number; confidence: number; fitCost: number };
+type Assignment = { indices: number[]; scores: number[]; total: number; confidence: number; fitCost: number; repeatCost: number };
 type Division = { A: Assignment[]; B: Assignment[] };
 type Pair = { A: Assignment; B: Assignment; objective: number; gap: number; meanLaneGap: number; maxLaneGap: number };
 
-function assignments(indices: number[], ratings: PlayerRating[], locks: Map<string, LaneLock>, players: Player[]): Assignment[] {
+function assignments(indices: number[], ratings: PlayerRating[], locks: Map<string, LaneLock>, players: Player[], repeats: Map<string, number>): Assignment[] {
   const result: Assignment[] = [];
   const seats: number[] = [];
   function place(position: number, used: number) {
@@ -37,7 +37,9 @@ function assignments(indices: number[], ratings: PlayerRating[], locks: Map<stri
       const scores = seats.map((index, lane) => ratings[index].lanes[LANES[lane]].score);
       result.push({ indices: seats.slice(), scores, total: scores.reduce((sum, n) => sum + n, 0),
         confidence: seats.reduce((sum, index, lane) => sum + ratings[index].lanes[LANES[lane]].confidence, 0) / 5,
-        fitCost: seats.reduce((sum, index, lane) => sum + 1 - ratings[index].lanes[LANES[lane]].preference, 0) });
+        fitCost: seats.reduce((sum, index, lane) => sum + 1 - ratings[index].lanes[LANES[lane]].preference, 0),
+        repeatCost: seats.reduce((sum, index, lane) => sum + (repeats.get(`lane:${players[index].id}:${LANES[lane]}`) || 0) * .06, 0)
+          + indices.reduce((sum, a, i) => sum + indices.slice(i + 1).reduce((n, b) => n + (repeats.get([players[a].id, players[b].id].sort().join(':')) || 0) * .08, 0), 0) });
       return;
     }
     for (let slot = 0; slot < indices.length; slot++) {
@@ -105,6 +107,14 @@ export function balancePlayers(pool: Player[], options: BalanceOptions): Balance
     }
   }
   const ratings = players.map(ratePlayer);
+  const repeats = new Map<string, number>();
+  for (const [i, teams] of (options.history || []).slice(-3).reverse().entries()) {
+    const weight = .6 ** i;
+    for (const team of [teams.A, teams.B]) for (const [j, seat] of team.entries()) {
+      const lane = `lane:${seat.playerId}:${seat.lane}`; repeats.set(lane, (repeats.get(lane) || 0) + weight);
+      for (const other of team.slice(j + 1)) { const key = [seat.playerId, other.playerId].sort().join(':'); repeats.set(key, (repeats.get(key) || 0) + weight); }
+    }
+  }
   const divisions: Division[] = [];
   const hasTeamLocks = teamCounts.A + teamCounts.B > 0;
   // There are only C(10,5)=252 team partitions and at most120 lane assignments
@@ -119,8 +129,8 @@ export function balancePlayers(pool: Player[], options: BalanceOptions): Balance
       (side === 'A' ? A : B).push(index);
     }
     if (!allowed || A.length !== 5 || B.length !== 5) continue;
-    const a = assignments(A, ratings, locks, players);
-    const b = assignments(B, ratings, locks, players);
+    const a = assignments(A, ratings, locks, players, repeats);
+    const b = assignments(B, ratings, locks, players, repeats);
     if (a.length && b.length) divisions.push({ A: a, B: b });
   }
   if (!divisions.length) reject('infeasible', '锁队和锁位条件组合无解，无法让每队五路各有一人。');
@@ -138,12 +148,12 @@ export function balancePlayers(pool: Player[], options: BalanceOptions): Balance
   const seed = options.seed?.slice(0, 256) || globalThis.crypto.randomUUID();
   const variety = typeof options.variety === 'number' && Number.isFinite(options.variety) ? Math.min(1, Math.max(0, options.variety)) : 0.7;
   const rng = randomFor(seed);
-  let chosen = reference, eligible = 1;
+  let chosen = reference, eligible = 1, eligibleWeight = 0;
   const slack = 0.5 + variety * 2.5;
   if (variety > 0) {
     eligible = 0;
-    // Uniform streaming reservoir across ALL candidates meeting all four near-
-    // fairness limits. Randomness cannot bypass any hard constraint or limit.
+    // Streaming reservoir across candidates meeting all four near-fairness limits.
+    // Without history it is uniform; history reweights only eligible candidates.
     for (const division of divisions) for (const A of division.A) for (const B of division.B) {
       const gap = Math.abs(A.total - B.total) / 5;
       if (gap > reference.gap + 0.5 + variety * 1.5 + 1e-9) continue;
@@ -152,7 +162,9 @@ export function balancePlayers(pool: Player[], options: BalanceOptions): Balance
         || pair.maxLaneGap > reference.maxLaneGap + 1 + variety * 3 + 1e-9
         || pair.meanLaneGap > reference.meanLaneGap + 0.5 + variety * 1.5 + 1e-9) continue;
       eligible++;
-      if (rng() < 1 / eligible) chosen = pair;
+      // History only reweights candidates after the original four fairness limits.
+      const weight = Math.exp(-2 * (A.repeatCost + B.repeatCost)); eligibleWeight += weight;
+      if (rng() < weight / eligibleWeight) chosen = pair;
     }
   }
   const toSeats = (assignment: Assignment): TeamSeat[] => assignment.indices.map((index, lane) => ({
@@ -173,10 +185,11 @@ export function balancePlayers(pool: Player[], options: BalanceOptions): Balance
   ];
   if (locks.size && (chosen.gap > 5 || chosen.maxLaneGap > 15)) reasons.push('硬锁定限制了公平性；本次按约束给出最佳范围内方案，建议放宽锁定。');
   if (sampleCount) reasons.unshift('全部10名均为虚构演示选手。');
+  if (options.history?.length) reasons.push('参考最近三场，轻量降低重复队友与重复分路；仍遵守公平阈值和本人偏好。');
   return {
     id: `arena-${hash(`${seed}|${teams.A.map(seat => `${seat.playerId}:${seat.lane}`).join(',')}|${teams.B.map(seat => `${seat.playerId}:${seat.lane}`).join(',')}`).toString(16).padStart(8, '0')}`,
     seed, teams, totals: { A: round(chosen.A.total), B: round(chosen.B.total) },
     gap: round(chosen.gap), laneGaps, objective: round(chosen.objective, 3), alternatives: Math.max(0, eligible - 1),
-    reasons, algorithmVersion: `${MATCHMAKING_VERSION}/${RATING_VERSION}`,
+    reasons, algorithmVersion: `${MATCHMAKING_VERSION}${options.history?.length ? '+history-v1' : ''}/${RATING_VERSION}`,
   };
 }

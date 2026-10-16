@@ -720,3 +720,10 @@ to{opacity:1;transform:translateY(0)}
 .algorithmNote p,.ratings li,.authDialog p{color:#bbb}
 .season summary>span,.recentMatches small{color:#aaa}
 @media(max-width:620px){.profileBar{gap:18px;align-items:flex-start}.profileIdentity{flex:1 1 100%}.profileIdentity>div{min-width:0}.profileIdentity h3{overflow-wrap:anywhere}.profileIdentity p{line-height:1.75}.profileUpdate{display:flex;align-items:center;gap:10px;width:100%;text-align:left}.profileUpdate>span{margin-bottom:0}}
+.identityBadge{font-size:13px;color:#bbb;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eventHero{min-height:260px;padding-top:35px;padding-bottom:35px;grid-template-columns:1fr}.eventHero h1{font-size:48px}.eventHero .heroVisual{display:none}.eventHero .heroCopy>p{font-size:16px}.eventHero .heroMeta{margin-top:22px}.eventHero .heroActions{margin-top:22px}
+@media(max-width:1150px){.headerActions{gap:10px}.identityBadge{max-width:140px}.nav{gap:17px}}
+@media(max-width:900px){.identityBadge{max-width:180px}.nav{gap:24px}.eventHero{min-height:0}}
+@media(max-width:620px){.identityBadge{display:none}.nav button{width:auto;flex:1;font-size:13px}.nav{gap:8px}.eventHero h1{font-size:38px}.eventHero{padding-top:28px;padding-bottom:25px}.eventHero .heroCopy>p{font-size:15px}}
+.dailyWorkspaceTop{display:none}.eventHero{min-height:0;padding:28px 0}.eventHero h1{font-size:38px;line-height:1.4;margin-bottom:12px}.eventHero .heroCopy>p{margin:0;max-width:none}.eventHero .heroMeta,.eventHero .heroActions{display:none}
+@media(max-width:620px){.eventHero h1{font-size:30px}.eventHero{padding:24px 0}.eventHero .eyebrow{font-size:13px;letter-spacing:2px}}

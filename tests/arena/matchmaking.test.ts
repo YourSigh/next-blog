@@ -14,3 +14,15 @@ test('balanced specialist pairs receive their strong lanes using the v2 lane sco
  for(const seat of [...r.teams.A,...r.teams.B])assert.equal(seat.lane,LANES[specialists.findIndex(p=>p.id===seat.playerId)%5]);
  assert.equal(r.gap,0);
 });
+
+test('daily history changes candidate sampling without relaxing the original fairness bounds', () => {
+  const pool = createDemoPlayers();
+  const options = { selectedIds: pool.map(p => p.id), locks: [], variety: .6, seed: 'daily-history' };
+  const baseline = balancePlayers(pool, { ...options, variety: 0 });
+  const result = balancePlayers(pool, { ...options, history: [baseline.teams, baseline.teams, baseline.teams] });
+  assert.deepEqual(result, balancePlayers(pool, { ...options, history: [baseline.teams, baseline.teams, baseline.teams] }));
+  assert.ok(result.gap <= baseline.gap + .5 + .6 * 1.5 + .02);
+  assert.ok(result.objective <= baseline.objective + .5 + .6 * 2.5 + .002);
+  const max = (r: ReturnType<typeof balancePlayers>) => Math.max(...Object.values(r.laneGaps));
+  assert.ok(max(result) <= max(baseline) + 1 + .6 * 3 + .02);
+});

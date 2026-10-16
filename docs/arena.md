@@ -22,6 +22,8 @@
 
 ## QQ 确认后授权失败的修复
 
+后续维护先核对[扫码登录维护与回归](arena-auth-regression.md)，保留 QQ 完整中转流程，微信修改后同时验证两个入口。
+
 第一版本地工具通过浏览器执行完整 QQ 登录页面；迁移到无需浏览器的 HTTP 实现时，遗漏了官方移动中转页的最终地址解析步骤。2026-10-16 本人真实扫码返回的入口是 `https://imgcache.qq.com/open/connect/widget/mobile/login/proxy.htm`，参数位于 fragment，并可能包含第二个 `#`。该[官方中转页](https://imgcache.qq.com/open/connect/widget/mobile/login/proxy.htm)会用 `redirect_uri_key` 请求 `https://openmobile.qq.com/oauth2.0/m_get_redirect_url?keystr=…`，通过 `_Callback(JSON)` 得到最终 `auth://tauth.qq.com/` 回调。此前的实现只处理直接回调和普通重定向，因而在手机确认后失败。
 
 现在严格识别该中转页地址及营地 AppID，只请求固定 QQ 官方接口，不把包含授权信息的 fragment 发往中转页面；仅解析 JSONP 数据，不执行远端脚本。最终回调必须包含与本次扫码一致的 state。QQ 轮询、回调、营地会话交换失败分别显示不同提示。回归测试覆盖真实响应结构的虚构样例、错误 AppID、重复字段、不相关域名、过期结果、state 缺失/不匹配以及脚本注入。真实授权和原始响应仅在诊断进程内存中使用，没有保存为测试样例。
@@ -42,6 +44,8 @@
 页面正文/说明以15px为主，表格桌面15px、手机14px，次要说明至少13px。评分卡改为分路对比条加独立拆分卡；手机单列、桌面按宽度二至三列。英雄与玩家头像保留原色。
 
 ## 公平分队
+
+新增[每日比赛与报名](arena-events.md)：路由 `/arena/events`，参赛/观战、服务端固定名单、候补轮换、赛后十人核验、下一场自动分配和按日赛果导出。报名身份可由本站签名 Cookie 记住 30 天，营地战绩授权仍保持独立的短期会话。
 
 版本 `arena-bounded-exhaustive-v1`。选十位不同选手，每队五路各一人，锁位/锁队是硬约束，无解时明确拒绝。枚举合法分队和位置排列，目标同时考虑团队平均分差、五路平均差、最大对位差、偏好适配及两队置信度差。十人的规模有固定上限，不使用无限搜索。
 

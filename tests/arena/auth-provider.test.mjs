@@ -13,6 +13,26 @@ test('WeChat signs the official SDK QR request and confirms only the matching fl
 test('WeChat cancelled and invalid target QR responses do not authorize anyone',async()=>{
  let authorized=0;const p=new WechatQrLogin({pollDelayMs:1,onAuthorization:async()=>{authorized++;},network:async url=>new URL(url).pathname==='/a/getwxsdkticket'?json({returnCode:0,data:{sdkTicket:'ticket'}}):json({errcode:0,uuid:'testuuid123',appname:'Other App',qrcode:{qrcodebase64:png.toString('base64')}})});await assert.rejects(p.start());assert.equal(authorized,0);await p.stop();
 });
+test('WeChat distinguishes polling failures from confirmed Camp failures without exposing errors',async()=>{
+ for(const scenario of ['poll','camp','rate_limit']){
+  let received=0;
+  const p=new WechatQrLogin({onAuthorization:async()=>{received++;throw Object.assign(new Error('token=private-code-and-response'),{name:scenario==='rate_limit'?'CampTransportError':'Error',code:'rate_limit'});},network:async()=>{if(scenario==='poll')throw new Error('uuid=private-identifier');return json({wx_errcode:405,wx_code:'official-code-value'});}});
+  p.controller=new AbortController();p.uuid='testuuid123';p.status='waiting';p.xLogUid='fixture';
+  try{await p._poll(p.generation);assert.equal(p.poll().status,'error');assert.match(p.poll().message,scenario==='poll'?/微信扫码状态查询失败/:/微信已确认，但营地登录验证失败/);if(scenario==='rate_limit')assert.match(p.poll().message,/请求频繁/);assert.equal(received,scenario==='poll'?0:1);assert.ok(!JSON.stringify(p.poll()).includes('private'));assert.equal(p.uuid,null);assert.equal(p.xLogUid,null);}finally{await p.stop();}
+ }
+});
+test('WeChat only exchanges after confirmation and ignores results from a stopped flow',async()=>{
+ let release,received=0,transient;
+ const pending=new Promise(resolve=>{release=resolve;});
+ const p=new WechatQrLogin({pollDelayMs:100000,onAuthorization:async data=>{received++;transient=data;await pending;},network:async()=>json({wx_errcode:404})});
+ p.controller=new AbortController();p.uuid='testuuid123';p.status='waiting';p.xLogUid='fixture';
+ try{
+  await p._poll(p.generation);assert.equal(p.poll().status,'scanned');assert.equal(received,0);clearTimeout(p.pollTimer);
+  p.network=async()=>json({wx_errcode:405,wx_code:'official-code-value'});
+  const confirmation=p._poll(p.generation);await new Promise(resolve=>setImmediate(resolve));assert.equal(received,1);assert.match(p.poll().message,/正在验证营地登录/);
+  await p.stop();release();await confirmation;assert.equal(p.poll().status,'cancelled');assert.equal(transient.code,'');assert.equal(transient.xLogUid,'');
+ }finally{release();await p.stop();}
+});
 test('QQ HTTP flow keeps cookies private and only accepts the expected official callback',async()=>{
  let state,received=0,transient;const requests=[];
  const p=new QQQrLogin({pollDelayMs:1,onAuthorization:async value=>{received++;transient=value;assert.equal(value.accessToken,'a'.repeat(32));},network:async(url,init)=>{

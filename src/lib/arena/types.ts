@@ -9,6 +9,7 @@ export type MatchStat = { id?: string; heroId: string | null; heroName: string; 
 export type PlayerPreferences = { preferredLanes: Lane[]; avoidedLanes: Lane[]; laneAdjustments: Partial<Record<Lane, number>> };
 export type Player = {
   id: string; provider: Provider; nickname: string; avatar: string | null; area: string | null;
+  roleKey?: string | null;
   rank: string | null; stars: number | null; updatedAt: string; importedAt: string;
   heroes: HeroStat[]; seasons: SeasonStat[]; matches: MatchStat[];
   preferences: PlayerPreferences; coverage: { heroRecords: number; seasonRecords: number; matchRecords: number; catalogMatched: boolean; limitations: string[] };
@@ -18,10 +19,10 @@ export type RatingComponent = { key:string; label:string; value:number|null; wei
 export type LaneRating = { evidence:'supported'|'limited'|'unknown'; specialty?:string; components:RatingComponent[]; topHeroes:Array<{id:string|null;name:string;icon:string|null;games:number|null;power:number|null;winRate:number|null}>; manual:number; score: number; confidence: number; games: number; winRate: number | null; preference: number; reasons: string[] };
 export type PlayerRating = { basis:{rankScore:number;peakScore:number|null;peakPoints:number|null;recentGames:number}; playerId: string; overall: number; confidence: number; lanes: Record<Lane, LaneRating>; reasons: string[]; version: string };
 export type LaneLock = { playerId: string; lane?: Lane; team?: 'A' | 'B' };
-export type BalanceOptions = { selectedIds: string[]; locks: LaneLock[]; seed?: string; variety?: number };
+export type BalanceOptions = { selectedIds: string[]; locks: LaneLock[]; seed?: string; variety?: number; history?: Array<BalancedMatch['teams']> };
 export type TeamSeat = { playerId: string; lane: Lane; score: number; confidence: number; preferred: boolean };
 export type BalancedMatch = {
   id: string; seed: string; teams: { A: TeamSeat[]; B: TeamSeat[] }; totals: { A: number; B: number };
   gap: number; laneGaps: Record<Lane, number>; objective: number; alternatives: number; reasons: string[]; algorithmVersion: string;
 };
-export type ArenaState = { authenticated: boolean; configured: boolean; currentPlayerId?: string | null; players: Player[]; ratings: PlayerRating[]; providers: { qq: { enabled: boolean; message?: string }; wechat: { enabled: boolean; message?: string } }; message?: string };
+export type ArenaState = { authenticated: boolean; configured: boolean; currentPlayerId?: string | null; identityPlayerId?: string | null; players: Player[]; ratings: PlayerRating[]; providers: { qq: { enabled: boolean; message?: string }; wechat: { enabled: boolean; message?: string } }; message?: string };
